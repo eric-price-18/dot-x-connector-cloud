@@ -21,7 +21,7 @@ test('valid signature cannot decouple operation, idempotency key, or reply targe
  const h=await writeHarness(t);
  const wrongKey=await h.call('x_create_original_post',args,{idempotency_key:key(2)});assert.equal(wrongKey.response.status,403);
  const wrongOp=await h.call('x_create_original_post',args,{operation:'x_repost'});assert.equal(wrongOp.response.status,403);
- const reply=await h.call('x_reply',{text:'reply',in_reply_to_post_id:'900',idempotency_key:key(1)},{in_reply_to_post_id:'901'});assert.equal(reply.response.status,403);
+ const reply=await h.call('x_reply',{text:'reply',in_reply_to_post_id:'900',in_reply_to_author_id:'5050',idempotency_key:key(1)},{in_reply_to_post_id:'901'});assert.equal(reply.response.status,403);
  assert.equal(h.state.xCalls.length,0);assert.equal(h.db.all('SELECT * FROM service_writes').length,0);
 });
 

@@ -58,8 +58,8 @@ boolean, differently capitalized or malformed value does not enable it.
 - **Own-thread replies:** frontend `X_OWN_THREAD_REPLIES_ENABLED`; backend
   `SERVICE_ENABLED`, `SERVICE_WRITE_ENABLED`, `REPLY_ENABLED`,
   `X_OWN_THREAD_REPLIES_ENABLED` and `LIVE_X_ENABLED`. Current platform approval,
-  target/author/root validation, opt-out scanning and durable interaction checks
-  remain necessary. The legacy reply interface is still code-disabled.
+  trusted browser target/author/root review, honoring opt-outs and local durable interaction checks
+  remain necessary. No independent server ancestry/public-status/freshness or new-STOP scan is provided. The legacy reply interface is still code-disabled.
 - **Write receipt lookup:** frontend `X_WRITE_STATUS_ENABLED`; backend
   `SERVICE_ENABLED`, `SERVICE_WRITE_ENABLED`, `X_WRITE_STATUS_ENABLED` and valid
   service/account binding. This is ledger-only and does not contact X.
@@ -103,6 +103,6 @@ change. A reconnect or new OAuth grant is not inherently required for discovery.
 
 `X_ONGOING_OPERATIONS_ENABLED` is `false` in both example configurations. The original expired immutable credit window remains unchanged. Ongoing mode is a separate reviewed opt-in using migration `0006_ongoing.sql`; it requires account-bound reconciliation records, not a renewed legacy run constant. An environment flag alone cannot create those records or authorize spending.
 
-Use UTC day/month boundaries, sample $1/day and $5/month limits, a maximum of five replies with 900-second spacing, and lower operator limits (including zero). Every old pending, successful and unknown operation counts without private exemptions. Paid polling remains off and cron lists remain empty. Follow the runnable [reconciliation workflow](reconciliation.md): supported D1 migrations, a local evidence validator, administrator-installed Worker secret, and the existing authenticated owner form. There is no automated provider-balance import. Do not fabricate or copy reconciliation rows from tests or another deployment.
+Use UTC day/month boundaries, sample $1/day and $5/month limits, a maximum of ten replies per UTC day, at most two per recipient per UTC day, eleven total writes and 900-second spacing, and lower operator limits (including zero). Every old pending, successful and unknown operation counts without private exemptions. Paid polling remains off and cron lists remain empty. Follow the runnable [reconciliation workflow](reconciliation.md): supported D1 migrations, a local evidence validator, administrator-installed Worker secret, and the existing authenticated owner form. There is no automated provider-balance import. Do not fabricate or copy reconciliation rows from tests or another deployment.
 
-The full $0.175 plain-text or $0.36 URL/ambiguous reply envelope must fit before paid preflight calls. Only never-attempted stages release their unused reservations; unknown attempts and crashes retain their conservative bounds. Owner-session diagnostics at `/owner/monitor-status` are local estimates, not authoritative provider balances. See [nested replies](nested-replies.md).
+The full $0.035 URL-free or $0.22 URL/ambiguous ongoing reply hold must fit before token work or dispatch. Only never-attempted stages release their unused reservations; unknown attempts and crashes retain their conservative bounds. Owner-session diagnostics at `/owner/monitor-status` are local estimates, not authoritative provider balances. See [browser-reviewed replies](browser-replies.md).

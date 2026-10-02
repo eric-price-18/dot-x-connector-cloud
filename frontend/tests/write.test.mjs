@@ -8,7 +8,7 @@ import {initializeFromOwnerClick,digest,SITE_ORIGIN} from '../lib/service-key.mj
 import {handleMcp} from '../lib/x-mcp.mjs';
 const id='01234567-89ab-4cde-8fab-0123456789ab';
 const args={text:'A small discovery worth sharing.',idempotency_key:id};
-const replyArgs={...args,text:args.text+'\n\n'+REPLY_OPT_OUT_NOTICE,in_reply_to_post_id:'987'};
+const replyArgs={...args,text:args.text+'\n\n'+REPLY_OPT_OUT_NOTICE,in_reply_to_post_id:'987',in_reply_to_author_id:'5050'};
 const owner=new Headers({'oai-authenticated-user-id':'fixture-owner','oai-authenticated-user-email':'owner@example.invalid'});
 const enabled={X_ORIGINAL_POSTS_ENABLED:'true',X_REPOSTS_ENABLED:'true',X_WRITE_STATUS_ENABLED:'true',X_REPLIES_ENABLED:'true'};
 const good={version:1,operation:'x_create_original_post',idempotency_key:id,state:'succeeded',code:'published',post_id:'1234567890'};
@@ -83,10 +83,11 @@ test('invalid UTF-8 JSON is rejected before mutation text can be silently replac
  const response=await handleMcp(new Request(SITE_ORIGIN+'/mcp',{method:'POST',headers:{...Object.fromEntries(owner),'content-type':'application/json'},body:bytes}),null,enabled);assert.equal(response.status,400);
 });
 
-test('reply notice is mandatory, unchanged and included in weighted length',()=>{
- assert.equal(validateWriteArguments('x_reply',replyArgs).ok,true);
- for(const text of [args.text,args.text+' Reply stop to opt out.',replyArgs.text+' trailing','x'.repeat(280)+' '+REPLY_OPT_OUT_NOTICE])assert.equal(validateWriteArguments('x_reply',{...replyArgs,text}).ok,false);
- assert.equal(validateWriteArguments('x_reply',{...replyArgs,text:'x'.repeat(279-REPLY_OPT_OUT_NOTICE.length)+' '+REPLY_OPT_OUT_NOTICE}).ok,true);
+test('reply footer is optional, text stays exact, and browser author is required',()=>{
+ for(const text of [args.text,'A café thought: “yes” 😀',replyArgs.text+' trailing']){const r=validateWriteArguments('x_reply',{...replyArgs,text});assert.equal(r.ok,true);assert.equal(r.args.text,text);}
+ assert.equal(validateWriteArguments('x_reply',{...replyArgs,text:'x'.repeat(281)}).ok,false);
+ const missing={...replyArgs};delete missing.in_reply_to_author_id;assert.equal(validateWriteArguments('x_reply',missing).ok,false);
+ for(const author of ['0','01',42,'unknown'])assert.equal(validateWriteArguments('x_reply',{...replyArgs,in_reply_to_author_id:author}).ok,false);
 });
 test('own-thread reply adapter forwards only exact target/text/key and rejects caller-supplied eligibility',async()=>{
  const db=await fixture();let calls=0;
@@ -97,7 +98,7 @@ test('own-thread reply adapter forwards only exact target/text/key and rejects c
 });
 
 test('bounded reply timeout can later resolve through status without resending the mutation',async()=>{
- assert.equal(DEFAULT_WRITE_TIMEOUT_MS,8000);assert.equal(DEFAULT_REPLY_TIMEOUT_MS,55000);
+ assert.equal(DEFAULT_WRITE_TIMEOUT_MS,8000);assert.equal(DEFAULT_REPLY_TIMEOUT_MS,30000);
  const db=await fixture();let sends=0,statusReads=0,committed=false;
  const fetchImpl=async(url,init)=>{const name=JSON.parse(init.body).params.name;if(name==='x_reply'){sends++;await new Promise(resolve=>setTimeout(resolve,200));committed=true;return response({...good,operation:'x_reply'});}statusReads++;return response({...good,operation:'x_reply',...(committed?{}:{state:'pending',post_id:undefined})});};
  const env={...enabled,X_OWN_THREAD_REPLIES_ENABLED:'true'};
@@ -120,7 +121,7 @@ test('status keeps configured gates, stored link state and live readiness distin
 test('write descriptors state exact boundaries and truthful MCP annotations',()=>{
  const tools=discoverWriteTools({...enabled,X_OWN_THREAD_REPLIES_ENABLED:'true'});
  for(const t of tools){assert.equal(t.inputSchema.additionalProperties,false);assert.equal(t.annotations.readOnlyHint,t.name==='x_get_write_status');assert.equal(t.annotations.openWorldHint,t.name!=='x_get_write_status');assert.equal(t.annotations.destructiveHint,t.name!=='x_get_write_status');assert.equal(t.annotations.idempotentHint,true);assert.ok(t.inputSchema.required.includes('idempotency_key'));}
- const reply=tools.find(t=>t.name==='x_reply');assert.match(reply.description,/directly replying/);assert.match(reply.description,/Reply STOP to opt out/);assert.match(reply.description,/one automated reply per interaction/);assert.ok(reply.inputSchema.required.includes('in_reply_to_post_id'));assert.doesNotMatch(reply.description,/X approval|written approval/);
+ const reply=tools.find(t=>t.name==='x_reply');assert.match(reply.description,/trusted owner-agent/);assert.match(reply.description,/no footer is required/);assert.match(reply.description,/one automated reply per interaction/);assert.ok(reply.inputSchema.required.includes('in_reply_to_post_id'));assert.doesNotMatch(reply.description,/X approval|written approval/);
 });
 
 test('bridge-disabled build reports unknown live state and makes no backend request',async()=>{

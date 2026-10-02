@@ -133,7 +133,7 @@ for(const change of [{SERVICE_X_ACCOUNT_ID:''},{SERVICE_X_ACCOUNT_ID:'77'},{X_EX
 test('token owner/account binding failure is consumed without X dispatch; reply gate cannot be enabled with env',async t=>{
  const h=await writeHarness(t,{REPLY_ENABLED:'true',X_REPLIES_ENABLED:'true'});await h.seed({scopes:writeScopes});
  await h.store.run("UPDATE accounts SET subject='wrong-owner'");assert.equal((await h.call('x_create_original_post',post())).receipt.state,'rejected');
- const reply=await h.call('x_reply',{text:'A reply',in_reply_to_post_id:'900',idempotency_key:key(2)});
+ const reply=await h.call('x_reply',{text:'A reply',in_reply_to_post_id:'900',in_reply_to_author_id:'5050',idempotency_key:key(2)});
  assert.equal(reply.receipt.code,'own_thread_replies_disabled');assert.equal(h.sends().length,0);
 });
 

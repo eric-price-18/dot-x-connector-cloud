@@ -1,3 +1,4 @@
+import { dayStart } from './ongoing.mjs';
 import { originalPrice } from './pricing.mjs';
 import { assert } from './security.mjs';
 import { isPostId } from './write-validation.mjs';
@@ -178,6 +179,42 @@ export class ReplyGuard {
         this.account,interaction.target,interaction.key,interaction.author,interaction.root,this.clock(),
         binding.issuer,binding.subject,binding.account,grantVersion,this.clock(),this.account,interaction.author,
         this.account,this.clock()-30,interaction.key),
+      this.store.statement(`INSERT INTO sends(idempotency_hash,payload_hash,status,created_at)
+        SELECT ?,?,'pending',? WHERE EXISTS(SELECT 1 FROM reply_interactions WHERE account_id=? AND target_id=? AND idempotency_key=?)
+        ON CONFLICT DO NOTHING`,keyHash,sendHash,this.clock(),this.account,interaction.target,interaction.key)
+    ]);
+    assert(results.length===2&&results.every(r=>r.success!==false&&r.meta?.changes===1),
+      'REPLY_DISPATCH_CLAIM_DENIED',409);
+  }
+  async verifyBrowser(args) {
+    // Author and owned-thread context are trusted owner-agent browser findings,
+    // not API-verified evidence. No paid lookup or global STOP scan occurs here.
+    assert(isPostId(args.in_reply_to_author_id),'INVALID_REPLY_AUTHOR');
+    assert(args.in_reply_to_author_id!==this.account,'SELF_REPLY_NOT_SUPPORTED',403);
+    await this.rejectOptOut(args.in_reply_to_author_id);
+    assert(!await this.store.first('SELECT author_id FROM reply_opt_outs WHERE account_id=? AND source_post_id=?',
+      this.account,args.in_reply_to_post_id),'REPLY_AUTHOR_OPTED_OUT',403);
+    const start=dayStart(this.clock()),end=dayStart(start+36*3600);
+    const count=await this.store.first('SELECT COUNT(*) AS n FROM reply_interactions WHERE account_id=? AND author_id=? AND created_at>=? AND created_at<?',
+      this.account,args.in_reply_to_author_id,start,end);
+    assert(count.n<2,'REPLY_AUTHOR_DAILY_LIMIT',429);
+    return {author:args.in_reply_to_author_id,target:args.in_reply_to_post_id,root:null,key:args.idempotency_key};
+  }
+  async claimBrowserDispatch(binding,grantVersion,interaction,keyHash,sendHash) {
+    // Atomic, permanent dispatch claims are created only after confirmed
+    // preflight success. Failed preflight consumes the UUID, not the target.
+    const start=dayStart(this.clock()),end=dayStart(start+36*3600);
+    const results=await this.store.db.batch([
+      this.store.statement(`INSERT INTO reply_interactions(account_id,target_id,idempotency_key,author_id,root_id,created_at)
+        SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM accounts WHERE id='primary' AND issuer=? AND subject=? AND x_user_id=?
+          AND version=? AND refresh_status='idle' AND expires_at>?)
+        AND NOT EXISTS(SELECT 1 FROM reply_opt_outs WHERE account_id=? AND (author_id=? OR source_post_id=?))
+        AND (SELECT COUNT(*) FROM reply_interactions WHERE account_id=? AND author_id=? AND created_at>=? AND created_at<?)<2
+        AND EXISTS(SELECT 1 FROM service_writes WHERE idempotency_key=? AND operation='x_reply' AND state='pending')
+        ON CONFLICT DO NOTHING`,
+        this.account,interaction.target,interaction.key,interaction.author,interaction.root,this.clock(),
+        binding.issuer,binding.subject,binding.account,grantVersion,this.clock(),this.account,interaction.author,interaction.target,
+        this.account,interaction.author,start,end,interaction.key),
       this.store.statement(`INSERT INTO sends(idempotency_hash,payload_hash,status,created_at)
         SELECT ?,?,'pending',? WHERE EXISTS(SELECT 1 FROM reply_interactions WHERE account_id=? AND target_id=? AND idempotency_key=?)
         ON CONFLICT DO NOTHING`,keyHash,sendHash,this.clock(),this.account,interaction.target,interaction.key)

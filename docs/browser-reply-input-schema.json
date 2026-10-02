@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Exact NFC text, at most 280 X-weighted characters. No general mentions, quote/reply parameters, private information, or identifying the user. A server-configured exact one-time original canary may include only its approved recipient."
+    },
+    "in_reply_to_post_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$",
+      "description": "Canonical positive decimal ID, 1–19 digits per X API. Never convert to a JavaScript Number."
+    },
+    "in_reply_to_author_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$",
+      "description": "Canonical positive decimal ID, 1–19 digits per X API. Never convert to a JavaScript Number."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "A new lowercase UUID v4 for a new intent. Retain this key after any timeout. Never change it to retry an uncertain publication."
+    }
+  },
+  "required": [
+    "text",
+    "in_reply_to_post_id",
+    "in_reply_to_author_id",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

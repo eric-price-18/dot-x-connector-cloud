@@ -34,7 +34,7 @@ async function setup(t,overrides={}) {
 
 test('workerd ongoing: full envelope reserved before reads, cooldown and restart claims',async t=>{
  const h=await setup(t);const r=await h.call();assert.equal(r.receipt.state,'succeeded',JSON.stringify(r.body));
- assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,70000);
+ assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,15000);
  await h.restart();assert.deepEqual((await h.call()).receipt,r.receipt);
  h.data.target={...h.data.target,id:'1003',edit_history_post_ids:['1003']};const before=h.xCalls().length;
  assert.equal((await h.call(replyArgs(2,replyArgs().text,'1003'))).receipt.code,'ongoing_operation_limit_or_cooldown');
@@ -43,33 +43,6 @@ test('workerd ongoing: full envelope reserved before reads, cooldown and restart
 test('workerd ongoing: insufficient full envelope causes zero paid preflight calls',async t=>{
  const h=await setup(t);await h.db.prepare('UPDATE x_credit_budgets SET used_micro_usd=600000').run();
  assert.equal((await h.call()).receipt.code,'ongoing_spend_cap_or_reconciliation');assert.equal(h.xCalls().length,0);
-});
-
-test('workerd nested: four intermediate parents require fresh lookups, owned root and full reservation',async t=>{
- const h=await setup(t),parents=new Map();h.data.root.created_at=new Date((RUNTIME_NOW-1000)*1000).toISOString();let parent=h.data.root;
- for(let i=0;i<4;i++) {
-  const id=String(7000+i),p={...h.data.root,id,author_id:i%2?'4242':'6060',conversation_id:h.data.root.id,
-   in_reply_to_user_id:parent.author_id,referenced_posts:[{type:'replied_to',id:parent.id}],edit_history_post_ids:[id],
-   created_at:new Date((RUNTIME_NOW-600+i*60)*1000).toISOString()};parents.set(id,p);parent=p;
- }
- h.data.target.referenced_posts=[{type:'replied_to',id:parent.id}];h.data.target.in_reply_to_user_id=parent.author_id;
- const original=h.state.onX;h.state.onX=call=>{const p=parents.get(call.url.pathname.split('/').at(-1));return p?json(lookupResponse(p)):original(call)};
- const r=await h.call();assert.equal(r.receipt.state,'succeeded',JSON.stringify(r.body));assert.equal(h.sends().length,1);
- for(const id of parents.keys())assert.equal(h.xCalls().filter(c=>c.url.pathname==='/2/tweets/'+id).length,1);
- const row=await h.db.prepare('SELECT amount,unresolved_micro_usd FROM ongoing_spend').first();assert.equal(row.amount,130000);assert.equal(row.unresolved_micro_usd,0);
-});
-
-test('workerd ongoing: retained full envelope blocks a second direct reply even below five-count ceiling',async t=>{
- const h=await setup(t);assert.equal((await h.call()).receipt.state,'succeeded');await h.setTime(RUNTIME_NOW+900);
- h.data.target={...h.data.target,id:'1003',edit_history_post_ids:['1003'],created_at:new Date((RUNTIME_NOW+899)*1000).toISOString()};
- await h.db.prepare("INSERT INTO ongoing_spend(account_id,day,month,amount,kind,created_at) VALUES('4242','2035-01-01','2035-01',850000,'api',?)").bind(h.clock()).run();
- const before=h.xCalls().length;assert.equal((await h.call(replyArgs(2,replyArgs().text,'1003'))).receipt.code,'ongoing_spend_cap_or_reconciliation');assert.equal(h.xCalls().length,before);
-});
-
-test('workerd nested: same-ID target/root rejects before second lookup and mutation',async t=>{
- const h=await setup(t);h.data.target.conversation_id=h.data.target.id;
- const r=await h.call();assert.equal(r.receipt.code,'reply_ancestry_invalid');assert.equal(h.sends().length,0);
- assert.equal(h.xCalls().filter(c=>c.url.pathname.startsWith('/2/tweets/')).length,1);
 });
 
 test('atomic request quotas and dollars: concurrent losers leave no partial reservations',async t=>{
@@ -102,31 +75,11 @@ test('only never-dispatched current attempts release; marked unknown and histori
  await new Store(h.db,h.clock).releaseUnattemptedCredit();
  assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,10000);
 });
-test('slim lookup rejects unexpected paid expansions and STOP scan requests no users',async t=>{
- for(const variant of ['posts','users','stop'])await t.test(variant,async t=>{
-  const h=await setup(t);const before=h.state.onX;
-  h.state.onX=call=>{
-   if(call.url.pathname==='/2/tweets/'+h.data.target.id){
-    assert.equal(call.url.searchParams.get('expansions'),'author_id');
-    const r=lookupResponse(h.data.target);
-    if(variant==='posts')r.includes.posts=[h.data.root];
-    if(variant==='users')r.includes.users.push({id:'999',protected:false});
-    return json(r);
-   }
-   if(call.url.pathname==='/2/users/4242/mentions'){
-    assert.equal(call.url.searchParams.has('expansions'),false);
-    return json({data:[],meta:{result_count:0},includes:{users:[{id:'999'}]}});
-   }
-   return before(call);
-  };
-  assert.notEqual((await h.call()).receipt.state,'succeeded');assert.equal(h.sends().length,0);
- });
-});
 test('failed and unknown plain reply dispatches retain new full attempted rate without resending',async t=>{
  for(const status of [400,503,201])await t.test(String(status),async t=>{
   const h=await setup(t),before=h.state.onX;h.state.onX=call=>call.method==='POST'&&call.url.pathname==='/2/tweets'?json({},status):before(call);
   const r=await h.call();assert.notEqual(r.receipt.state,'succeeded');assert.equal(h.sends().length,1);
-  assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,70000);
+  assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,15000);
   await h.restart();await h.call();assert.equal(h.sends().length,1);
  });
 });
@@ -144,11 +97,11 @@ test('shared prepaid stages cannot consume the same allowance concurrently',asyn
  assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,1);assert.equal(prepaid.remaining,0);assert.equal(prepaid.consumed,10000);
  const rows=(await h.db.prepare('SELECT used FROM budgets').all()).results;assert.equal(rows.length,2);assert(rows.every(r=>r.used===1));
 });
-test('local dispatch-claim rejection releases only unattempted write while retaining paid eligibility checks',async t=>{
+test('local dispatch-claim rejection releases only unattempted write without paid eligibility checks',async t=>{
  const h=await setup(t);
  await h.db.prepare("CREATE TRIGGER deny_local_claim BEFORE INSERT ON reply_interactions BEGIN SELECT RAISE(ABORT,'synthetic claim rejection'); END").run();
  assert.equal((await h.call()).receipt.state,'rejected');assert.equal(h.sends().length,0);
- assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,55000);
+ assert.equal((await h.db.prepare('SELECT SUM(amount) AS n FROM ongoing_spend').first()).n,0);
  assert.equal((await h.db.prepare('SELECT COUNT(*) AS n FROM reply_interactions').first()).n,0);
 });
 

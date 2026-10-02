@@ -88,7 +88,7 @@ test('workerd write: signature/body/proof binding, broad tools, policy reply gat
  assert.equal((await h.call('x_create_original_post',post(),{idempotency_key:key(2)})).response.status,403);
  assert.equal((await h.call('x_create_original_post',post(),{}, {sendBody:h.f.body('x_create_original_post',post('tampered'))})).response.status,401);
  assert.equal((await h.call('x_delete_post',post())).response.status,401);
- assert.equal((await h.call('x_reply',{text:'Runtime reply',in_reply_to_post_id:'900',idempotency_key:key(1)})).receipt.code,'own_thread_replies_disabled');
+ assert.equal((await h.call('x_reply',{text:'Runtime reply',in_reply_to_post_id:'900',in_reply_to_author_id:'5050',idempotency_key:key(1)})).receipt.code,'own_thread_replies_disabled');
  const mention=await h.call('x_create_original_post',post('@someone hello'));
  assert.equal(mention.response.status,403);assert.equal(mention.body.error.message,'CANARY_MENTION_NOT_CONFIGURED');
  assert.equal(h.state.calls.length,0);

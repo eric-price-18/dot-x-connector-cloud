@@ -5,7 +5,7 @@ export const WRITE_ENDPOINT = 'https://backend.example.invalid/service/write/mcp
 export const WRITE_PATH = '/service/write/mcp';
 export const REPLY_OPT_OUT_NOTICE = 'Reply STOP to opt out.';
 // Platform policy and any required written approval must be checked before enabling replies.
-// Backend-owned eligibility/opt-out/one-interaction checks remain mandatory.
+// Browser-reviewed context is a trusted owner assertion; local opt-out/dedup checks remain mandatory.
 export const MUTATIONS = new Set(['x_create_original_post', 'x_repost', 'x_reply']);
 export const WRITE_NAMES = new Set([...MUTATIONS, 'x_get_write_status']);
 export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -50,17 +50,18 @@ export async function validateConfiguredWriteArguments(name, args, env = {}, now
 
 function validateArguments(name, args, allowedCanaryMention) {
  if (!WRITE_NAMES.has(name)) return {ok:false, reason:'unknown_write_tool'};
- const fields = name === 'x_repost' ? ['post_id','idempotency_key'] : name === 'x_get_write_status' ? ['idempotency_key'] : name === 'x_reply' ? ['text','in_reply_to_post_id','idempotency_key'] : ['text','idempotency_key'];
+ const fields = name === 'x_repost' ? ['post_id','idempotency_key'] : name === 'x_get_write_status' ? ['idempotency_key'] : name === 'x_reply' ? ['text','in_reply_to_post_id','in_reply_to_author_id','idempotency_key'] : ['text','idempotency_key'];
  if (!exact(args, fields) || typeof args.idempotency_key !== 'string' || !UUID_V4.test(args.idempotency_key)) return {ok:false, reason:'invalid_write_arguments'};
  if (name === 'x_repost' && !isPostId(args.post_id)) return {ok:false, reason:'invalid_post_id'};
  if (name === 'x_reply' && !isPostId(args.in_reply_to_post_id)) return {ok:false, reason:'invalid_reply_target'};
+ if (name === 'x_reply' && !isPostId(args.in_reply_to_author_id)) return {ok:false, reason:'invalid_reply_author'};
  if ('text' in args) {
   // Never trim/normalize a user's intended publication behind their back. NFC is required explicitly.
   if (typeof args.text !== 'string' || !args.text.trim() || args.text.length > 4096 || args.text !== args.text.normalize('NFC') || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069\ud800-\udfff]/u.test(args.text)) return {ok:false, reason:'invalid_post_text'};
   const parsed = twitterText.parseTweet(args.text);
   if (!parsed.valid || parsed.weightedLength > 280) return {ok:false, reason:'post_text_exceeds_limit'};
   // Original-post automation cannot become unsolicited mention/reply automation through its text.
-  // Replies carry a server-validated target; text mentions are intentionally unavailable there too.
+  // Replies carry a browser-reviewed target; text mentions are intentionally unavailable there too.
   if (!allowedCanaryMention && (twitterText.extractMentions(args.text).length || /[@＠]/u.test(args.text))) return {ok:false, reason:'mentions_not_supported'};
   for (const match of twitterText.extractUrlsWithIndices(args.text)) {
    let url;
@@ -69,7 +70,6 @@ function validateArguments(name, args, allowedCanaryMention) {
    let path; try {path = decodeURIComponent(url.pathname);} catch {return {ok:false,reason:'invalid_post_text'};}
    if (host === 't.co' || ((host === 'x.com' || host.endsWith('.x.com') || host === 'twitter.com' || host.endsWith('.twitter.com')) && /(?:^|\/)(?:status|statuses)\/[0-9]+(?:\/|$)/i.test(path))) return {ok:false, reason:'quote_links_not_supported'};
   }
-  if (name === 'x_reply' && !args.text.endsWith(REPLY_OPT_OUT_NOTICE)) return {ok:false,reason:'reply_opt_out_notice_required'};
  }
  const normalized = Object.fromEntries(fields.map(key => [key, args[key]]));
  return {ok:true, args:normalized};
@@ -81,7 +81,7 @@ const postIdSchema = {type:'string',pattern:POST_ID.source,description:'Canonica
 const descriptors = [
  {name:'x_create_original_post',description:'Publish one low-impact original text post as @example_dot_bot. Requires active server approval. No replies, general mentions, quotes, media, private user information, or commitments. Only a server-configured exact one-time canary may include its approved recipient. On unknown/pending outcome use x_get_write_status; never resend or change the key.',inputSchema:{type:'object',properties:{text:textSchema,idempotency_key:keySchema},required:['text','idempotency_key'],additionalProperties:false}},
  {name:'x_repost',description:'Repost one public post as @example_dot_bot, within the backend daily cap. Review the post first. No quote text or bulk reposting. On unknown/pending outcome use x_get_write_status; never resend or change the key.',inputSchema:{type:'object',properties:{post_id:postIdSchema,idempotency_key:keySchema},required:['post_id','idempotency_key'],additionalProperties:false}},
- {name:'x_reply',description:'Reply as @example_dot_bot only to a person directly replying to one of the account’s original root posts. The backend must verify target/root ownership, honor opt-outs, and permit at most one automated reply per interaction. End exact text with "Reply STOP to opt out." inside the 280-weighted-character limit. No extra mentions, quotes, or unrelated targets. Preserve the original idempotency key; never resend an unknown outcome.',inputSchema:{type:'object',properties:{text:textSchema,in_reply_to_post_id:postIdSchema,idempotency_key:keySchema},required:['text','in_reply_to_post_id','idempotency_key'],additionalProperties:false}},
+ {name:'x_reply',description:'Reply as @example_dot_bot only after the trusted owner-agent verifies the original root belongs to the bound account, target/author IDs, public context, freshness and opt-outs in the browser. Nested replies are allowed inside that owned thread. The backend does not independently verify ancestry, public status, freshness or newly observed STOP requests. Skip if IDs cannot be verified without guessing. Honor no-response requests and reply only when it adds value; no footer is required. Local stored opt-outs, account/grant, budgets and one automated reply per interaction remain enforced. Fresh grant: one publish POST; expired grant may add refresh and account verification. No extra mentions or quotes. Preserve the original key; never resend an unknown outcome.',inputSchema:{type:'object',properties:{text:textSchema,in_reply_to_post_id:postIdSchema,in_reply_to_author_id:postIdSchema,idempotency_key:keySchema},required:['text','in_reply_to_post_id','in_reply_to_author_id','idempotency_key'],additionalProperties:false}},
  {name:'x_get_write_status',description:'Read a durable write receipt by its original idempotency key. Never sends or retries a post and never contacts X. Not-found is not permission to retry an uncertain send.',inputSchema:{type:'object',properties:{idempotency_key:keySchema},required:['idempotency_key'],additionalProperties:false}}
 ];
 export function discoverWriteTools(env = {}) {

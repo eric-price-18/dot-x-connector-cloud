@@ -15,7 +15,7 @@ This is reusable source with deliberately inert examples. Bring your own account
 - Fixed-window credit reservations, request limits and operation limits; optional default-off ongoing accounting with UTC caps and reply spacing
 - Offline Node, real-workerd/D1 and frontend/backend interoperability tests
 
-The own-thread reply implementation considers eligible direct and nested responses inside an account-owned original thread, after fresh bounded parent-chain verification. It checks public authorship, freshness, opt-outs and one automated reply per interaction, and requires an opt-out notice. Replies ship disabled. Review the [platform policy caveat](docs/costs-and-policy.md) before use.
+Replies use trusted owner-agent browser review of the target, author and account-owned original thread, including nested replies. The backend enforces local account/grant, stored opt-out, budget, cooldown and one-interaction controls; it does not independently verify ancestry, public status, freshness or new STOP requests. No footer is required. A fresh grant needs one publish POST; expired grants can add token refresh and account verification. Replies ship disabled. Read [browser-reviewed replies](docs/browser-replies.md) and the [platform policy caveat](docs/costs-and-policy.md) before use.
 
 Direct Messages, arbitrary API proxying, following, liking, deletion, media upload and quote posts are outside this package. It does not provide instant notifications or a general-purpose conversation bot.
 

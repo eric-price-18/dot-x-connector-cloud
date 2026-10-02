@@ -2,7 +2,7 @@ import { originalPrice } from './pricing.mjs';
 import { ongoing, claimOperation, reserveOngoing, periods } from './ongoing.mjs';
 import { assert, digest, enabled, positiveLimit, readBodyBytes, SafeError } from './security.mjs';
 import { SERVICE } from './service.mjs';
-import { ReplyGuard, OPT_OUT_NOTICE, replyPreflightPrice } from './reply-guard.mjs';
+import { ReplyGuard } from './reply-guard.mjs';
 import { canaryMentionAuthorization } from './canary-mention.mjs';
 import { isPostId } from './write-validation.mjs';
 
@@ -77,7 +77,6 @@ export class ServiceWrites {
     if(isReply && (!enabled(this.env.X_OWN_THREAD_REPLIES_ENABLED)||!enabled(this.env.REPLY_ENABLED)))
       return receipt(name,key,'rejected','own_thread_replies_disabled');
     assert(name==='x_create_original_post'||name==='x_repost'||isReply,'UNKNOWN_WRITE_TOOL');
-    if(isReply)assert(args.text.endsWith(OPT_OUT_NOTICE),'REPLY_OPT_OUT_NOTICE_REQUIRED');
     const binding=this.binding();
     const canary=await canaryMentionAuthorization(name,args,this.env,this.clock());
     if(!isReply) {
@@ -99,10 +98,10 @@ export class ServiceWrites {
         return receipt(name,key,'rejected','idempotency_binding_conflict');
       return this.fromRow(row,key);
     }
-    let x,keyHash,ownedSend=false,prepaidId,prepaidAmount;
+    let x,keyHash,ownedSend=false,prepaidId,prepaidAmount,interaction;
     const replyGuard=isReply?new ReplyGuard(this.env,this.store,this.clock):null;
     try {
-      if(isReply)await replyGuard.checkUnclaimed(args);
+      if(isReply){await replyGuard.checkUnclaimed(args);interaction=await replyGuard.verifyBrowser(args);}
       x=this.connectorFactory();
       // Bind before any token read/refresh. Key tombstones match the legacy API
       // for original payloads, preserving duplicate suppression across routes.
@@ -123,8 +122,8 @@ export class ServiceWrites {
         await claimOperation(this.store,this.env,isReply?'reply':'original',key);
         if(isReply) {
           // Reserve the full bounded workflow BEFORE any paid token/lookup call:
-          // .02 refresh/identity + six .015 lookups + two .025 STOP pages + classified write.
-          prepaidAmount=replyPreflightPrice(args.text);
+          // Only .02 refresh/identity headroom plus the classified write.
+          prepaidAmount=20000+originalPrice(args.text);
           const day=periods(this.clock()).day;
           prepaidId=await reserveOngoing(this.store,this.env,prepaidAmount);
           this.store.ongoingReservationDay=day;
@@ -138,10 +137,9 @@ export class ServiceWrites {
       const grant=await x.tokens({withVersion:true});
       const tokens=grant.tokens;
       assert(tokens.scopes.includes('tweet.write'),'X_WRITE_SCOPE_REQUIRED',403);
-      const interaction=isReply?await replyGuard.verify(x,tokens.access_token,args):null;
       if(isReply && !ongoing(this.env)) {
         const day=Math.floor(this.clock()/86400);
-        await this.store.reserve(`replies:day:${day}`,1,positiveLimit(this.env,'MAX_REPLIES_DAY',1,5),(day+1)*86400);
+        await this.store.reserve(`replies:day:${day}`,1,positiveLimit(this.env,'MAX_REPLIES_DAY',1,10),(day+1)*86400);
       }
       if(name==='x_repost') {
         const day=Math.floor(this.clock()/86400);
@@ -156,7 +154,7 @@ export class ServiceWrites {
       const dispatchAccount=await this.store.account();x.bind(dispatchAccount);
       assert(dispatchAccount.version===grant.version && dispatchAccount.refresh_status==='idle','X_GRANT_SUPERSEDED',409);
       if(isReply) {
-        await replyGuard.claimDispatch(binding,grant.version,interaction,keyHash,sendHash);
+        await replyGuard.claimBrowserDispatch(binding,grant.version,interaction,keyHash,sendHash);
         ownedSend=true;
       }
       const path=name==='x_repost'?`/2/users/${binding.account}/retweets`:'/2/tweets';

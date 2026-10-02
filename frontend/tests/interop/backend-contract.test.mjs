@@ -23,7 +23,7 @@ async function resign(proof,db,change){const [h,p]=proof.authorization.slice(7).
 
 test('actual frontend proof is accepted by backend for original, repost, own-thread reply and ledger status; read contract still interoperates',async()=>{
  const {db,env}=await fixture();const clock=()=>Math.floor(Date.now()/1000);const verify=createServiceVerifier(clock,{write:true});
- for(const [name,args] of [['x_create_original_post',{text:'A mocked interoperability check 🦋',idempotency_key:id}],['x_repost',{post_id:'1234567890123456789',idempotency_key:id}],['x_get_write_status',{idempotency_key:id}],['x_reply',{text:'Narrow reply fixture. Reply STOP to opt out.',in_reply_to_post_id:'123',idempotency_key:id}]]){
+ for(const [name,args] of [['x_create_original_post',{text:'A mocked interoperability check 🦋',idempotency_key:id}],['x_repost',{post_id:'1234567890123456789',idempotency_key:id}],['x_get_write_status',{idempotency_key:id}],['x_reply',{text:'Narrow reply fixture. Reply STOP to opt out.',in_reply_to_post_id:'123',in_reply_to_author_id:'5050',idempotency_key:id}]]){
   const proof=await fixedWriteRequest(headers,db,name,args,frontEnv);const accepted=await verify(request(proof),env,encoder.encode(proof.body));assert.equal(accepted.kind,'service_write');assert.equal(accepted.operation,name);assert.equal(accepted.idempotency_key,id);assert.deepEqual(backendValidate(name,JSON.parse(proof.body).params.arguments),validateWriteArguments(name,args).args);
  }
  const read=await fixedServiceRequest(headers,db,'x_connection_status');assert.equal((await createServiceVerifier(clock)(request(read,ENDPOINT),env,encoder.encode(read.body))).kind,'service');
@@ -67,7 +67,7 @@ test('backend handler rejects validly signed operation/key/reply-target mismatch
  const proof=await fixedWriteRequest(headers,db,'x_create_original_post',{text:'Binding test',idempotency_key:id},frontEnv);
  const send=p=>worker.fetch(request(p,WRITE_ENDPOINT,{accept:'application/json, text/event-stream'}),env);
  for(const change of [(h,c)=>{c.operation='x_repost'},(h,c)=>{c.idempotency_key=crypto.randomUUID()}])assert.equal((await send(await resign(proof,db,change))).status,403);
- const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'x_reply',arguments:{text:'Test-only reply. Reply STOP to opt out.',in_reply_to_post_id:'123',idempotency_key:id}}});const hash=await digest(body);
+ const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'x_reply',arguments:{text:'Test-only reply. Reply STOP to opt out.',in_reply_to_post_id:'123',in_reply_to_author_id:'5050',idempotency_key:id}}});const hash=await digest(body);
  const wrongTarget=await resign({...proof,body},db,(h,c)=>{c.operation='x_reply';c.scope='x:reply';c.in_reply_to_post_id='456';c.body_sha256=hash});assert.equal((await send(wrongTarget)).status,403);assert.equal(calls,0);
 });
 

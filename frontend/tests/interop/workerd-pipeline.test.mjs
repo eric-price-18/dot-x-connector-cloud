@@ -50,15 +50,16 @@ test('actual frontend and backend workerd pipeline enforces own-thread replies, 
   assert.equal((await call('x_get_write_status',{idempotency_key:args.idempotency_key})).value.state,'succeeded');assert.equal(xCalls,1);
   const repost=await call('x_repost',{post_id:'1234567890123456789',idempotency_key:crypto.randomUUID()});assert.equal(repost.ok,true,JSON.stringify(repost));assert.equal(xCalls,2);
   ambiguous=true;const unknownArgs={text:'A different mocked uncertain workerd intent',idempotency_key:crypto.randomUUID()};assert.equal((await call('x_create_original_post',unknownArgs)).value.state,'unknown');assert.equal(xCalls,3);assert.equal((await call('x_create_original_post',unknownArgs)).value.state,'unknown');assert.equal(xCalls,3);assert.equal((await call('x_get_write_status',{idempotency_key:unknownArgs.idempotency_key})).value.state,'unknown');assert.equal(xCalls,3);assert.equal(frontCalls,8);
-  ambiguous=false;const reply={text:'A helpful narrow reply. Reply STOP to opt out.',in_reply_to_post_id:'20001',idempotency_key:crypto.randomUUID()};
-  const sent=await call('x_reply',reply);assert.equal(sent.ok,true,JSON.stringify(sent));assert.equal(sent.value.operation,'x_reply');assert.equal(mutationCalls,4);assert.equal(xCalls,7);
-  assert.equal((await call('x_reply',reply)).value.post_id,sent.value.post_id);assert.equal(xCalls,7);
-  const duplicate=await call('x_reply',{...reply,text:'Changed wording. Reply STOP to opt out.',idempotency_key:crypto.randomUUID()});assert.equal(duplicate.value.state,'rejected');assert.equal(xCalls,7);
-  const stop=await call('x_reply',{...reply,in_reply_to_post_id:'20002',idempotency_key:crypto.randomUUID()});assert.equal(stop.value.code,'reply_author_opted_out');assert.equal(mutationCalls,4);assert.equal(xCalls,8);
-  const optedOutAgain=await call('x_reply',{...reply,in_reply_to_post_id:'20003',idempotency_key:crypto.randomUUID()});assert.equal(optedOutAgain.value.code,'reply_author_opted_out');assert.equal(mutationCalls,4);assert.equal(xCalls,9);
-  ambiguous=true;const uncertainReply={...reply,in_reply_to_post_id:'20004',idempotency_key:crypto.randomUUID()};assert.equal((await call('x_reply',uncertainReply)).value.state,'unknown');assert.equal(mutationCalls,5);assert.equal(xCalls,13);
-  assert.equal((await call('x_reply',uncertainReply)).value.state,'unknown');assert.equal(xCalls,13);assert.equal((await call('x_get_write_status',{idempotency_key:uncertainReply.idempotency_key})).value.state,'unknown');assert.equal(xCalls,13);
-  const secondKey=await call('x_reply',{...uncertainReply,text:'Do not repeat. Reply STOP to opt out.',idempotency_key:crypto.randomUUID()});assert.equal(secondKey.value.state,'rejected');assert.equal(xCalls,13);
+  ambiguous=false;const reply={text:'A helpful narrow reply. Reply STOP to opt out.',in_reply_to_post_id:'20001',in_reply_to_author_id:'5050',idempotency_key:crypto.randomUUID()};
+  const sent=await call('x_reply',reply);assert.equal(sent.ok,true,JSON.stringify(sent));assert.equal(sent.value.operation,'x_reply');assert.equal(mutationCalls,4);assert.equal(xCalls,4);
+  assert.equal((await call('x_reply',reply)).value.post_id,sent.value.post_id);assert.equal(xCalls,4);
+  const duplicate=await call('x_reply',{...reply,text:'Changed wording. Reply STOP to opt out.',idempotency_key:crypto.randomUUID()});assert.equal(duplicate.value.state,'rejected');assert.equal(xCalls,4);
+  await db.prepare('INSERT INTO reply_opt_outs VALUES(?,?,?,?)').bind('4242','5050','20002',now).run();
+  const stop=await call('x_reply',{...reply,in_reply_to_post_id:'20002',idempotency_key:crypto.randomUUID()});assert.equal(stop.value.code,'reply_author_opted_out');assert.equal(mutationCalls,4);assert.equal(xCalls,4);
+  const optedOutAgain=await call('x_reply',{...reply,in_reply_to_post_id:'20003',idempotency_key:crypto.randomUUID()});assert.equal(optedOutAgain.value.code,'reply_author_opted_out');assert.equal(mutationCalls,4);assert.equal(xCalls,4);
+  ambiguous=true;const uncertainReply={...reply,in_reply_to_post_id:'20004',in_reply_to_author_id:'6060',idempotency_key:crypto.randomUUID()};assert.equal((await call('x_reply',uncertainReply)).value.state,'unknown');assert.equal(mutationCalls,5);assert.equal(xCalls,5);
+  assert.equal((await call('x_reply',uncertainReply)).value.state,'unknown');assert.equal(xCalls,5);assert.equal((await call('x_get_write_status',{idempotency_key:uncertainReply.idempotency_key})).value.state,'unknown');assert.equal(xCalls,5);
+  const secondKey=await call('x_reply',{...uncertainReply,text:'Do not repeat. Reply STOP to opt out.',idempotency_key:crypto.randomUUID()});assert.equal(secondKey.value.state,'rejected');assert.equal(xCalls,5);
 
  }finally{await mf.dispose()}
 });

@@ -5,35 +5,34 @@ Local source-export verification, 2 October 2026, Linux with Node 24.19.0. These
 ## Passed
 
 - Clean dependency installation with both pinned package lockfiles
-- Backend syntax/configuration (67 modules), six empty-schema migrations and integrity checks
-- Backend Node suite: 451 passed, zero failed or skipped
-- Backend workerd/local D1 suite: 100 passed, zero failed or skipped
+- Backend syntax/configuration (66 modules), six empty-schema migrations and integrity checks
+- Backend Node suite: 412 passed, zero failed or skipped
+- Backend workerd/local D1 suite: 104 passed, zero failed or skipped
+- Atomic caps: ten replies/day, two per recipient/day and eleven total writes; lower limits, concurrent claims, pending/unknown claims and UTC-midnight reset covered
 - Backend Wrangler dry-run with network denial and telemetry disabled
 - Prior-release evidence reused for the unchanged bundled parser: rebuilt byte-for-byte from pinned dependencies
 - Frontend shipped-defaults regression: two passed
-- Frontend/core and cross-package suite: 75 passed, zero failed or skipped
+- Frontend/core and cross-package suite: 66 passed, zero failed or skipped
 - Actual MCP-ingress frontend/backend dual-workerd pipeline with real local D1 and mocked X
 - Optional MCP transport metadata accepted, validated and stripped before signing; malformed metadata and attempted authority overrides denied
 - Native-shaped status-only ingress with every mutation/live-X gate off and zero mocked X/identity-provider calls
-- Prior-release evidence reused for unchanged frontend modules: fresh supported-starter TypeScript and full production build
-- Prior-release built-overlay smoke evidence reused: setup routing, anonymous/other-owner rejection, security headers and default read-only MCP discovery, with outbound requests denied
+- Current frontend core modules compile and run through the dual-workerd interoperability harness. Full supported-starter TypeScript/build was last verified on an earlier release and was not rerun for this changed reply contract.
+- Earlier built-overlay smoke covered setup routing, anonymous/other-owner rejection, security headers and default discovery; it is historical evidence, not live acceptance of this new contract.
 - Source-tree review for credentials, account/deployment identifiers, encoded fixture claims, runtime artifacts and private provenance
 
 Backend workerd fixtures use an explicit synthetic 2035 clock and advance it directly for expiry tests. Historical Node and cross-package cases use a fixed 2000 clock. Test clock controls and in-memory credit fixtures are never production entrypoints. The frontend suite's temporary test copy enables its read bridge only inside that copy. It tests the distributed default-off module separately. Public example service endpoints are reserved domains. Backend test vectors are newly generated, expired synthetic proofs with discarded private keys.
 
 - Generic reconciliation tests cover the real owner login/form path, CSRF and origin denial, exact account binding, shutdown/default-off gates, schema checks, D1 atomicity, replay, full legacy carry and no credit replenishment. The local validator smoke verifies restrictive output permissions and rejects overwrite or in-source output.
 
-## Nested/ongoing candidate boundary
+## Browser-reviewed reply boundary
 
-The local adaptation additionally covers four intermediate ancestors, same-ID target/root rejection before a second lookup, fresh parent evidence, classified $0.175/$0.36 preflight reservations, atomic five-attempt ceiling, 900-second spacing, missing reconciliation, conservative unresolved liabilities, and owner-only local diagnostics. No live X call or deployment was used to verify this candidate. Private deployment results and the private candidate's test counts are not this source's evidence.
+The current service path is covered by 16 dedicated browser-reply transport cases/subcases plus real frontend/backend interoperability. Fresh credentials produce exactly one publish POST and no content/STOP scan. Expired credentials produce token POST, account-verification GET and reply POST. Tests cover required author metadata, signed body/target tampering, stored and late local opt-outs, count/cooldown/budget denials, Unicode text preservation, grant rotation, concurrent single-send and permanent unknown receipts.
 
-Reconciliation uses the shipped owner form and local validator with administrator-supplied evidence. The template provides no automatic dashboard import, private historical exclusions or activated budget records. UTC calendar defaults and conservative mutation reservations deliberately avoid private operational assumptions. Paid polling and all gates remain disabled.
+The server trusts the owner-agent's browser findings about root ownership, author, public status, freshness and new no-response requests. Those are not independently verified by the backend. Old paid-ancestry/mandatory-footer service tests were replaced by tests for this contract; the lower Node/frontend test counts do not represent skipped failures. Retained standalone historical guard tests exercise old helpers, not a guarantee or paid step in normal replies.
 
-## Pricing/accounting parity follow-up
+Atomic monetary/request quotas, UTC caps, default-off gates, owner reconciliation, pre/post-reservation grant fences, stored opt-outs, target claims and historical liabilities remain. The current grant-rotation regression and real-D1 trigger tests still pass. Generic reconciliation tests continue to cover the authenticated owner form, CSRF/origin/account checks, shutdown gates, D1 atomicity, replay and no credit replenishment.
 
-Offline coverage additionally verifies atomic request-quota and money reservations under concurrency; no partial charges after known local denial; no release of historical, dispatched, unknown or ambiguously committed liabilities; and release only of the current invocation's provably unattempted call. Lookup/STOP responses reject unrequested expansions. Plain text with sentence-ending punctuation uses the lower reservation; encoded, disguised and Unicode URL ambiguity keeps the higher one.
-
-The existing grant-replacement regression remains intact. The public adaptation checks the grant both before and after awaited budget reservation; a real-D1 trigger test rotates it during reservation and proves zero dispatch while an existing unknown liability remains unchanged. No live reply-success claim follows from these tests.
+No deployment, paid X call, actual live reply, or hosted native-catalog integration was performed for this candidate. The public source contains no private temporary budget/count exception. Platform policy/approval and account entitlement are separate prerequisites.
 
 ## Reproducibility
 

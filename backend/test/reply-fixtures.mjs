@@ -1,6 +1,6 @@
 import { writeHarness,writeScopes,key } from './write-fixtures.mjs';
 import { response } from './helpers.mjs';
-export const replyArgs=(n=1,text='Thanks for the thoughtful question. Reply STOP to opt out.',target='1002')=>({text,in_reply_to_post_id:target,idempotency_key:key(n)});
+export const replyArgs=(n=1,text='Thanks for the thoughtful question. Reply STOP to opt out.',target='1002')=>({text,in_reply_to_post_id:target,in_reply_to_author_id:'5050',idempotency_key:key(n)});
 export function replyData(now) {
  const common={entities:{mentions:[]}};
  const target={...common,id:'1002',author_id:'5050',conversation_id:'1001',in_reply_to_user_id:'4242',

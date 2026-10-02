@@ -138,7 +138,7 @@ export class Store {
       [`requests:day:${day}`,1,positiveLimit(env,'MAX_X_REQUESTS_DAY',16,100),now+40*86400,'LOCAL_REQUESTS_DAY_EXHAUSTED'],
       [`requests:hour:${hour}`,1,positiveLimit(env,'MAX_X_REQUESTS_HOUR',8,20),(hour+1)*3600,'LOCAL_REQUESTS_HOUR_EXHAUSTED'],
       ...(records?[[`records:month:${month}`,records,positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000),now+40*86400,'LOCAL_RECORDS_MONTH_EXHAUSTED']]:[]),
-      ...(write?[[`writes:day:${day}`,1,positiveLimit(env,'MAX_WRITES_DAY',2,6),now+40*86400,'LOCAL_WRITES_DAY_EXHAUSTED']]:[])
+      ...(write?[[`writes:day:${day}`,1,positiveLimit(env,'MAX_WRITES_DAY',2,11),now+40*86400,'LOCAL_WRITES_DAY_EXHAUSTED']]:[])
     ];
     assert(Number.isSafeInteger(amount)&&amount>0&&Number.isSafeInteger(records)&&records>=0,'INVALID_RESERVATION');
     const prepaid=this.prepaidCredit;
@@ -197,7 +197,7 @@ export class Store {
     if (records) await this.reserve(`records:month:${month}`, records,
       positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000), monthEnd, ongoing(env));
     if (write) await this.reserve(`writes:day:${day}`, 1,
-      positiveLimit(env,'MAX_WRITES_DAY',2,ongoing(env)?6:10), (ongoing(env)?now+40*86400:(day+1)*86400), ongoing(env));
+      positiveLimit(env,'MAX_WRITES_DAY',2,ongoing(env)?11:10), (ongoing(env)?now+40*86400:(day+1)*86400), ongoing(env));
   }
 
   async setCooldown(until) {

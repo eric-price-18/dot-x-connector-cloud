@@ -121,17 +121,17 @@ test('workerd credit: original, repost, reply, cached reads and refresh share on
   assert.equal((await h.call('x_create_original_post', post())).receipt.state, 'succeeded');
   assert.equal((await h.call('x_repost', { post_id: '900', idempotency_key: key(2) })).receipt.state, 'succeeded');
   assert.equal((await h.call('x_reply', replyArgs(3))).receipt.state, 'succeeded');
-  assert.equal(await used(h), 655_000);
+  assert.equal(await used(h), 600_000);
   await h.db.prepare('UPDATE accounts SET expires_at=0').run();
   await h.scheduled();
-  assert.equal(await used(h), 725_000);
-  assert.deepEqual(charges, [200_000, 400_000, 415_000, 430_000, 455_000, 655_000, 665_000, 675_000, 700_000, 725_000]);
-  assert.equal(h.xCalls().length, 10);
+  assert.equal(await used(h), 670_000);
+  assert.deepEqual(charges, [200_000, 400_000, 600_000, 610_000, 620_000, 645_000, 670_000]);
+  assert.equal(h.xCalls().length, 7);
   const before = await ledger(h);
   await h.restart();
   assert.deepEqual(await ledger(h), before);
   assert.equal((await h.call('x_get_write_status', { idempotency_key: key(3) })).receipt.state, 'succeeded');
-  assert.equal(h.xCalls().length, 10);
+  assert.equal(h.xCalls().length, 7);
 });
 
 for (const [label, reply, expected] of [

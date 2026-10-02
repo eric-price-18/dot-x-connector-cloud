@@ -25,10 +25,13 @@ export function validatePostText(text,{canaryHandle}={}) {
 export function validateWriteArguments(name,args,options={}) {
   assert(WRITE_NAMES.has(name),'UNKNOWN_WRITE_TOOL');
   const fields=name==='x_repost'?['post_id','idempotency_key']:name==='x_get_write_status'?['idempotency_key']:
-    name==='x_reply'?['text','in_reply_to_post_id','idempotency_key']:['text','idempotency_key'];
+    name==='x_reply'?['text','in_reply_to_post_id','in_reply_to_author_id','idempotency_key']:['text','idempotency_key'];
   assert(exactKeys(args,fields) && typeof args.idempotency_key==='string' && UUID_V4.test(args.idempotency_key),'INVALID_WRITE_ARGUMENTS');
   if(name==='x_repost') assert(isPostId(args.post_id),'INVALID_POST_ID');
-  if(name==='x_reply') assert(isPostId(args.in_reply_to_post_id),'INVALID_REPLY_TARGET');
+  if(name==='x_reply') {
+    assert(isPostId(args.in_reply_to_post_id),'INVALID_REPLY_TARGET');
+    assert(isPostId(args.in_reply_to_author_id),'INVALID_REPLY_AUTHOR');
+  }
   if('text' in args) validatePostText(args.text,name==='x_create_original_post'?options:{});
   return Object.fromEntries(fields.map(key=>[key,args[key]]));
 }

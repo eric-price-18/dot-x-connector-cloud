@@ -3,7 +3,7 @@ import {fixedWriteRequest} from './write-service-key.mjs';
 import {WRITE_ENDPOINT, MUTATIONS, writeEnabled, validateConfiguredWriteArguments, normalizeWriteReceipt} from './write-contract.mjs';
 const MAX_BYTES = 16384;
 export const DEFAULT_WRITE_TIMEOUT_MS = 8000;
-export const DEFAULT_REPLY_TIMEOUT_MS = 55000;
+export const DEFAULT_REPLY_TIMEOUT_MS = 30000;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const fail = (status, reason, extra = {}) => ({ok:false,status,reason,safe_to_retry:false,...extra});
 

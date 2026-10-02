@@ -98,18 +98,9 @@ operation limits are additional guards. The dollar estimates are implementation
 assumptions, not a guarantee of current X billing; verify pricing before any
 real deployment and keep reservations conservative.
 
-Own-thread replies require a recent response by another public author inside
-an original thread owned by the connector account. Direct and nested replies
-are supported after fresh root and parent-chain verification, with at most four
-intermediate ancestors. They reject edited, private, sensitive, unrelated
-participants and ambiguous records. Each edge permits explicit mentions only
-of the account and its freshly verified immediate parent author. See
-[the nested reply guide](../docs/nested-replies.md) for limits and costs. Visible handle checks
-retain an example code pin (`@example_dot_bot`) that must be reviewed alongside
-the intended account. A fresh bounded opt-out scan and atomic dispatch claim
-provide durable opt-out and one-reply-per-interaction controls. Every reply must
-contain the exact opt-out notice. These controls do not establish that an app
-has the platform approvals required for automated replies.
+Normal signed-service replies accept exactly `text`, `in_reply_to_post_id`, `in_reply_to_author_id` and `idempotency_key`. The trusted owner-agent establishes account-owned original-thread context, public visibility, freshness, author identity and no-response requests in the browser. These facts are not independently verified by the server. Existing stored opt-outs are enforced before token work and again in the atomic dispatch claim; new interaction root metadata is null.
+
+With fresh credentials this path performs one POST `/2/tweets`, without paid content reads or a mandatory STOP footer. Optional expired-grant refresh performs a token POST and account-verification GET first. Local budgets, cooldowns, grant fences and permanent receipts remain intact. See [browser-reviewed replies](../docs/browser-replies.md). Retained historical ancestry helpers are not called by the normal service path; the legacy reply interface stays code-disabled. Technical controls do not establish platform approval.
 
 ## One-time mention canary
 

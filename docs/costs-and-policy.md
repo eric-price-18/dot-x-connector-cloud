@@ -16,7 +16,7 @@ X currently uses prepaid, pay-per-use credits. Listed examples are $0.015 per or
 
 Verify the exact endpoint's current charge in the Developer Console. Set a provider spending limit and deliberately choose whether auto-recharge is enabled. Daily billing deduplication is a soft guarantee, and a credit balance can become slightly negative. A local counter or cached estimate is not proof of the final bill. [X pricing and spending controls](https://docs.x.com/x-api/getting-started/pricing)
 
-The optional ongoing accounting path uses those published rates without ownership, deduplication or summoned discounts. It reserves $0.175 before a plain reply workflow, or $0.36 for URL/ambiguous text; see [the exact breakdown](nested-replies.md). Atomic quota-and-money reservation avoids charging a known local denial. Only a current, provably unattempted call can release its dollar reservation; historical and unknown liabilities remain untouched. The unchanged UTC caps, operation ceiling and spacing still apply. No live reply success is established by these offline tests.
+The optional ongoing accounting path uses those published rates without ownership, deduplication or summoned discounts. It reserves $0.035 before an ordinary URL-free browser-reviewed reply, or $0.22 for URL/ambiguous text; see [the exact breakdown](browser-replies.md). Atomic quota-and-money reservation avoids charging a known local denial. Only a current, provably unattempted call can release its dollar reservation; historical and unknown liabilities remain untouched. The unchanged UTC caps, operation ceiling and spacing still apply. No live reply success is established by these offline tests.
 
 ## Automation
 
