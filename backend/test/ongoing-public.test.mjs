@@ -48,6 +48,28 @@ test('owner diagnostics reject foreign binding and reveal only bounded local tot
  const v=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(v.reconciled,true);assert.equal(v.reply_preflight_micro_usd,220000);assert(!JSON.stringify(v).includes('synthetic-owner'));assert(!('account_id' in v));
  f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:'other',x_user_id:'42'});await assert.rejects(ownerDiagnostics(f.env,f.store,f.clock));
 });
+test('owner diagnostics report the enforced reply ceiling, including default, zero, lower and clamped caps',async()=>{
+ for(const [configured,expected] of [[undefined,1],['0',0],['3',3],['10',10],['11',10],['100',10]]) {
+  const f=fixture();f.env.MAX_REPLIES_DAY=configured;
+  f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:f.env.MCP_ALLOWED_SUBJECT,x_user_id:'42'});
+  const value=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(value.reply_ceiling,expected);assert.equal(value.reconciled,true);
+  for(let i=0;i<expected;i++){await claimOperation(f.store,f.env,'reply','key'+i);f.advance(900);}
+  await assert.rejects(claimOperation(f.store,f.env,'reply','extra'),e=>e.code==='ONGOING_OPERATION_LIMIT_OR_COOLDOWN');
+  f.db.exec('DELETE FROM ongoing_cycles');
+  const blocked=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(blocked.reply_ceiling,expected);assert.equal(blocked.reconciled,false);
+  f.env.X_ONGOING_OPERATIONS_ENABLED='false';
+  const disabled=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(disabled.reply_ceiling,expected);assert.equal(disabled.enabled,false);
+ }
+});
+test('owner diagnostics and enforcement reject invalid reply limits consistently',async()=>{
+ for(const configured of ['', '-1', '1.5', '101', 'invalid', 5]) {
+  const f=fixture();f.env.MAX_REPLIES_DAY=configured;
+  f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:f.env.MCP_ALLOWED_SUBJECT,x_user_id:'42'});
+  await assert.rejects(ownerDiagnostics(f.env,f.store,f.clock),e=>e.code==='INVALID_REPLY_LIMIT'&&e.status===503);
+  await assert.rejects(claimOperation(f.store,f.env,'reply','invalid'),e=>e.code==='INVALID_REPLY_LIMIT'&&e.status===503);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM ongoing_operations').get().n,0);
+ }
+});
 test('monitor handler authenticates before any diagnostic query',async()=>{
  let touched=false;const owner={session:async()=>{throw Error('unauthorized')},store:{account:async()=>{touched=true}},env:{},clock:()=>0};
  await assert.rejects(OwnerLogin.prototype.monitor.call(owner,new Request('https://backend.example.invalid/owner/monitor-status')));assert.equal(touched,false);

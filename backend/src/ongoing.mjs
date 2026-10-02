@@ -1,6 +1,12 @@
 import { assert, enabled } from './security.mjs';
 export const ongoing = env => enabled(env.X_ONGOING_OPERATIONS_ENABLED);
 
+export function ongoingReplyLimit(env) {
+  const raw=env.MAX_REPLIES_DAY??'1',configured=Number(raw);
+  assert(typeof raw==='string'&&/^\d+$/.test(raw)&&Number.isSafeInteger(configured)&&configured>=0&&configured<=100,'INVALID_REPLY_LIMIT',503);
+  return Math.min(configured,10);
+}
+
 export function periods(now) {
   const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:'UTC',year:'numeric',month:'2-digit',day:'2-digit'});
   const p=Object.fromEntries(formatter.formatToParts(new Date(now*1000)).map(v=>[v.type,v.value]));
@@ -54,9 +60,7 @@ export async function reserveOngoing(store,env,amount,headroom=0) {
 }
 export async function claimOperation(store,env,kind,key) {
   assert(['reply','original'].includes(kind),'INVALID_OPERATION');
-  const raw=env.MAX_REPLIES_DAY??'1',configured=Number(raw);
-  assert(typeof raw==='string'&&/^\d+$/.test(raw)&&Number.isSafeInteger(configured)&&configured>=0&&configured<=100,'INVALID_REPLY_LIMIT',503);
-  const replyLimit=Math.min(configured,10);
+  const replyLimit=ongoingReplyLimit(env);
   const {day}=periods(store.clock()),account=env.X_EXPECTED_USER_ID,now=store.clock();
   const row=await store.first(`INSERT INTO ongoing_operations(account_id,day,kind,intent,created_at)
     SELECT ?,?,?,?,? WHERE
