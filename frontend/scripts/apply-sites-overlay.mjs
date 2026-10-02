@@ -1,0 +1,26 @@
+// Apply only to a freshly generated, unregistered starter in a separate directory.
+import {cp,readFile,writeFile,mkdir} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+const source=path.resolve(fileURLToPath(new URL('..',import.meta.url)));
+assert.ok(process.argv[2],'Usage: node scripts/apply-sites-overlay.mjs /path/to/fresh-starter');
+const target=path.resolve(process.argv[2]);assert.notEqual(target,source);
+const hosting=JSON.parse(await readFile(path.join(target,'.openai/hosting.json'),'utf8'));
+assert.ok(!hosting.project_id,'Use a fresh, unregistered starter; this command must not change an existing Site.');
+const pkg=JSON.parse(await readFile(path.join(target,'package.json'),'utf8'));
+assert.equal(pkg.name,'site-creator-vinext-starter','Unsupported starter');
+const workerPath=path.join(target,'build/sites-worker.ts');let worker=await readFile(workerPath,'utf8');
+assert.equal((worker.match(/export default \{/g)||[]).length,1,'Starter Worker shape changed; review integration manually.');
+assert.ok(!worker.includes('withConnectorSetup'),'Overlay already applied');
+const license=await readFile(path.join(source,'../LICENSE'),'utf8');
+assert.ok(license.includes('MIT License') && license.includes('dot-x-connector contributors'),'Connector license missing');
+for(const name of ['lib','app','db','drizzle','integration'])await cp(path.join(source,name),path.join(target,name),{recursive:true});
+await writeFile(path.join(target,'LICENSE.dot-x-connector'),license);
+for(const name of ['globals.css','layout.tsx'])await cp(path.join(source,'examples',name),path.join(target,'app',name));
+worker="import {withConnectorSetup} from '../integration/with-connector-setup';\n"+worker.replace('export default {','const platformWorker = {')+'\nexport default withConnectorSetup(platformWorker);\n';
+await writeFile(workerPath,worker);
+pkg.dependencies={...pkg.dependencies,'twitter-text':'3.1.0'};
+await writeFile(path.join(target,'package.json'),JSON.stringify(pkg,null,2)+'\n');
+await writeFile(path.join(target,'.openai/hosting.json'),JSON.stringify({...hosting,d1:'DB',capabilities:[...new Set([...(hosting.capabilities??[]),'mcp'])]},null,2)+'\n');
+console.log('Custom overlay applied locally. Refresh the changed lockfile with npm install --package-lock-only --ignore-scripts --no-audit --no-fund, then install dependencies and build using the generated starter workflow. No Site was registered or deployed.');

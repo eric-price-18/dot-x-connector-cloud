@@ -1,0 +1,144 @@
+import { assert, positiveLimit, randomValue, SafeError } from './security.mjs';
+import { CREDIT_RUN_ID,CREDIT_RUN_DEADLINE,CREDIT_MAX_MICROUSD } from './credit-policy.mjs';
+
+export class Store {
+  constructor(db, clock) {
+    assert(db?.prepare && db?.batch, 'D1_BINDING_REQUIRED', 503);
+    // No Sessions API: D1 sends all queries to its primary, without read replicas.
+    this.db = db;
+    this.clock = clock;
+  }
+  statement(sql, ...args) { return this.db.prepare(sql).bind(...args); }
+  first(sql, ...args) { return this.statement(sql, ...args).first(); }
+  run(sql, ...args) { return this.statement(sql, ...args).run(); }
+
+  account() { return this.first("SELECT * FROM accounts WHERE id = 'primary'"); }
+
+  async saveAccount(issuer, subject, userId, encrypted, expires, expectedVersion = null) {
+    const row = await this.first(`INSERT INTO accounts
+      (id,issuer,subject,x_user_id,encrypted_tokens,expires_at,updated_at)
+      SELECT 'primary',?,?,?,?,?,?
+      WHERE ? IS NULL OR ?=0 OR EXISTS(SELECT 1 FROM accounts WHERE id='primary')
+      ON CONFLICT(id) DO UPDATE SET encrypted_tokens=excluded.encrypted_tokens,
+      expires_at=excluded.expires_at, version=accounts.version+1,
+      refresh_status='idle', refresh_attempt=NULL, updated_at=excluded.updated_at
+      WHERE accounts.issuer=excluded.issuer AND accounts.subject=excluded.subject
+      AND accounts.x_user_id=excluded.x_user_id
+      AND (? IS NULL OR accounts.version=?) RETURNING id`,
+    issuer, subject, userId, encrypted, expires, this.clock(), expectedVersion, expectedVersion, expectedVersion, expectedVersion);
+    assert(row, 'ACCOUNT_BINDING_MISMATCH', 403);
+  }
+
+  async claimRefresh(version) {
+    const attempt = randomValue();
+    const row = await this.first(`UPDATE accounts SET refresh_status='inflight',refresh_attempt=?
+      WHERE id='primary' AND version=? AND refresh_status='idle' RETURNING id`, attempt, version);
+    assert(row, 'REFRESH_IN_PROGRESS_OR_RECONNECT_REQUIRED', 409);
+    return attempt;
+  }
+
+  async finishRefresh(version, attempt, encrypted, expires) {
+    const row = await this.first(`UPDATE accounts SET encrypted_tokens=?,expires_at=?,
+      version=version+1,refresh_status='idle',refresh_attempt=NULL,updated_at=?
+      WHERE id='primary' AND version=? AND refresh_attempt=? AND refresh_status='inflight' RETURNING id`,
+    encrypted, expires, this.clock(), version, attempt);
+    assert(row, 'REFRESH_SUPERSEDED_RECONNECT_REQUIRED', 409);
+  }
+
+  async failRefresh(version, attempt) {
+    await this.run(`UPDATE accounts SET refresh_status='reconnect' WHERE id='primary'
+      AND version=? AND refresh_attempt=?`, version, attempt);
+  }
+
+  async consumeState(hash, cookieHash) {
+    const row = await this.first(`DELETE FROM oauth_states
+      WHERE state_hash=? AND cookie_hash=? AND expires_at>? RETURNING encrypted_payload`,
+    hash, cookieHash, this.clock());
+    assert(row, 'OAUTH_STATE_INVALID_OR_EXPIRED', 400);
+    return row.encrypted_payload;
+  }
+
+  async reserve(bucket, amount, limit, expires) {
+    const row = await this.first(`INSERT INTO budgets (bucket,used,expires_at)
+      SELECT ?,?,? WHERE ?<=?
+      ON CONFLICT(bucket) DO UPDATE SET used=budgets.used+excluded.used
+      WHERE budgets.used+excluded.used<=? RETURNING used`, bucket, amount, expires, amount, limit, limit);
+    assert(row, 'LOCAL_BUDGET_EXHAUSTED', 429);
+  }
+
+  checkCreditWindow(env) {
+    const expires=Number(env.X_CREDIT_EXPIRES_AT);
+    assert(env.X_CREDIT_BUDGET_ID===CREDIT_RUN_ID && Number.isSafeInteger(expires)
+      && expires<=CREDIT_RUN_DEADLINE && expires>this.clock(),'X_CREDIT_AUTHORIZATION_REQUIRED',503);
+  }
+
+  async reserveCredit(env,amount) {
+    this.checkCreditWindow(env);
+    const id=env.X_CREDIT_BUDGET_ID,account=env.X_EXPECTED_USER_ID;
+    const cap=Number(env.X_CREDIT_CAP_MICROUSD),expires=Number(env.X_CREDIT_EXPIRES_AT);
+    const initial=typeof env.X_CREDIT_INITIAL_MICROUSD==='string'&&env.X_CREDIT_INITIAL_MICROUSD.trim()!==''?Number(env.X_CREDIT_INITIAL_MICROUSD):NaN;
+    assert(typeof id==='string' && /^[A-Za-z0-9_-]{8,64}$/.test(id) && /^[1-9][0-9]{0,18}$/.test(account??'')
+      && Number.isSafeInteger(cap) && cap>0 && cap<=CREDIT_MAX_MICROUSD && Number.isSafeInteger(expires) && expires>this.clock()
+      && Number.isSafeInteger(initial) && initial>=0 && initial<=cap && Number.isSafeInteger(amount) && amount>0,
+      'X_CREDIT_AUTHORIZATION_REQUIRED',503);
+    // Pin the authorization even when its first requested charge cannot fit.
+    // A denied first attempt cannot later lower INITIAL or change cap/expiry.
+    await this.run(`INSERT INTO x_credit_budgets
+      (budget_id,account_id,cap_micro_usd,initial_micro_usd,used_micro_usd,expires_at,created_at)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,id,account,cap,initial,initial,expires,this.clock());
+    const row=await this.first(`UPDATE x_credit_budgets SET used_micro_usd=used_micro_usd+?
+      WHERE budget_id=? AND account_id=? AND cap_micro_usd=? AND initial_micro_usd=? AND expires_at=?
+        AND expires_at>? AND used_micro_usd+?<=cap_micro_usd RETURNING used_micro_usd`,
+      amount,id,account,cap,initial,expires,this.clock(),amount);
+    assert(row,'X_CREDIT_CAP_REACHED_OR_CHANGED',429);
+  }
+
+  async reserveX(env, records = 0, write = false, creditMicroUsd = undefined) {
+    // Worst-case posted prices, no ownership discount or dedup assumption. All
+    // mutations reserve $0.20 (including URL posts); unclassified auth/user reads
+    // reserve $0.01. Expanded reads pass an explicit conservative bound.
+    await this.reserveCredit(env,creditMicroUsd ?? (write?200000:records?records*5000:10000));
+    const now = this.clock();
+    const cooldown = await this.first("SELECT until_at FROM cooldowns WHERE name='x'");
+    assert(!cooldown || cooldown.until_at <= now, 'X_RATE_LIMIT_COOLDOWN', 429);
+    const day = Math.floor(now / 86400);
+    const hour = Math.floor(now / 3600);
+    const date = new Date(now * 1000);
+    const month = `${date.getUTCFullYear()}-${date.getUTCMonth()+1}`;
+    const monthEnd = Date.UTC(date.getUTCFullYear(), date.getUTCMonth()+1, 1) / 1000;
+    // Reservations are deliberately pessimistic and never refunded after failure.
+    await this.reserve(`requests:day:${day}`, 1, positiveLimit(env,'MAX_X_REQUESTS_DAY',16,100), (day+1)*86400);
+    await this.reserve(`requests:hour:${hour}`, 1, positiveLimit(env,'MAX_X_REQUESTS_HOUR',8,20), (hour+1)*3600);
+    if (records) await this.reserve(`records:month:${month}`, records,
+      positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000), monthEnd);
+    if (write) await this.reserve(`writes:day:${day}`, 1,
+      positiveLimit(env,'MAX_WRITES_DAY',2,10), (day+1)*86400);
+  }
+
+  async setCooldown(until) {
+    await this.run(`INSERT INTO cooldowns(name,until_at) VALUES('x',?)
+      ON CONFLICT(name) DO UPDATE SET until_at=MAX(cooldowns.until_at,excluded.until_at)`, until);
+  }
+
+  async reserveSend(keyHash, payloadHash) {
+    const row = await this.first(`INSERT INTO sends(idempotency_hash,payload_hash,status,created_at)
+      VALUES(?,?,'pending',?) ON CONFLICT DO NOTHING RETURNING idempotency_hash`,
+    keyHash, payloadHash, this.clock());
+    if (row) return null;
+    const byKey = await this.first('SELECT * FROM sends WHERE idempotency_hash=?', keyHash);
+    assert(!byKey || byKey.payload_hash === payloadHash, 'IDEMPOTENCY_KEY_REUSED', 409);
+    const prior = byKey ?? await this.first('SELECT * FROM sends WHERE payload_hash=?', payloadHash);
+    assert(prior?.payload_hash === payloadHash, 'IDEMPOTENCY_KEY_REUSED', 409);
+    assert(byKey, 'DUPLICATE_CONTENT_DO_NOT_RESEND', 409);
+    if (prior.status === 'sent') return { id: prior.result_id, duplicate: true };
+    throw new SafeError('SEND_PENDING_OR_UNCERTAIN_DO_NOT_RETRY', 409);
+  }
+
+  async cleanup() {
+    await this.db.batch([
+      this.statement('DELETE FROM oauth_states WHERE expires_at<=?', this.clock()),
+      this.statement('DELETE FROM budgets WHERE expires_at<=?', this.clock()),
+      this.statement('DELETE FROM snapshots WHERE fetched_at<=?', this.clock()-7*86400)
+    ]);
+  }
+}

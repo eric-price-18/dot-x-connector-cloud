@@ -1,0 +1,14 @@
+{
+  "test_only": true,
+  "description": "Expired synthetic offline fixture; never trust this key in production. Private key discarded.",
+  "public_jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "koH-O_AcwpWQtzEGWPJNKihKPy_pR4Nzxvidq_OZbgc",
+    "y": "lWuUvB1tH_BlC34ttGFbfXjj48gJQO3V-FVwtCUqo2Y"
+  },
+  "kid": "sKFqCmReyFDXCA0geTNlhW_2lJxwzRgxe_SPZwqbFbQ",
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"x_connection_status\",\"arguments\":{}}}",
+  "now": 946728000,
+  "token": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNLRnFDbVJleUZEWENBMGdlVE5saFdfMmxKeHd6Umd4ZV9TUFp3cWJGYlEifQ.eyJpc3MiOiJodHRwczovL2Zyb250ZW5kLmV4YW1wbGUuaW52YWxpZCIsInN1YiI6ImRvdC14LWNvbm5lY3RvcjpleGFtcGxlLWRlcGxveW1lbnQiLCJhdWQiOiJodHRwczovL2JhY2tlbmQuZXhhbXBsZS5pbnZhbGlkL3NlcnZpY2UvbWNwIiwic2NvcGUiOiJ4OnJlYWQiLCJpYXQiOjk0NjcyODAwMCwiZXhwIjo5NDY3MjgwNDUsImp0aSI6ImNjNWNlZGZhLTYyZTEtNDM1MS1hMjc2LTE0ZDgyODRjNzU0NyIsIm1ldGhvZCI6IlBPU1QiLCJwYXRoIjoiL3NlcnZpY2UvbWNwIiwiYm9keV9zaGEyNTYiOiJPczdPT2J3OHRxQk9BdU1FX2lGREZtWngtVFlvMkFoV0N3ekFPOWhJUkZJIn0.VCFb5de2gQLRmpSifYMtAOWxrbZh1bQT72kACCX8JozJFnMI4E1HStwPyYFtcd9Fajazv0Pz4cFwaoPpVF4xcQ"
+}

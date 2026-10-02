@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dot-x-connector-example",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": false,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
+  },
+  "triggers": {
+    "crons": []
+  },
+  "vars": {
+    "PUBLIC_BASE_URL": "https://backend.example.invalid",
+    "MCP_AUTH_MODE": "descope",
+    "MCP_ISSUER": "https://identity.example.invalid",
+    "MCP_DISCOVERY_URL": "https://identity.example.invalid/.well-known/openid-configuration",
+    "MCP_JWKS_URL": "https://identity.example.invalid/.well-known/jwks.json",
+    "MCP_USERINFO_URL": "https://identity.example.invalid/userinfo",
+    "SERVICE_ENABLED": "false",
+    "SERVICE_WRITE_ENABLED": "false",
+    "OWNER_LOGIN_ENABLED": "false",
+    "LIVE_X_ENABLED": "false",
+    "LIVE_IDP_ENABLED": "false",
+    "READ_POLLING_ENABLED": "false",
+    "POST_ENABLED": "false",
+    "REPLY_ENABLED": "false",
+    "X_ORIGINAL_POSTS_ENABLED": "false",
+    "X_REPOSTS_ENABLED": "false",
+    "X_OWN_THREAD_REPLIES_ENABLED": "false",
+    "X_WRITE_STATUS_ENABLED": "false",
+    "MAX_X_REQUESTS_DAY": "2",
+    "MAX_X_REQUESTS_HOUR": "2",
+    "MAX_READ_RECORDS_MONTH": "0",
+    "MAX_WRITES_DAY": "0",
+    "MAX_REPLIES_DAY": "0",
+    "MAX_REPOSTS_DAY": "0",
+    "OWNER_X_WRITE_CONSENT_ENABLED": "false"
+  }
+}

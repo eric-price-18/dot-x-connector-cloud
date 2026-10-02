@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+coverage/
+*.db
+*.sqlite*
+dist/
+.tools/
+.runtime-state/
+wrangler-*-dry-run.txt

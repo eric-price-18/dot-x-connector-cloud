@@ -1,0 +1,23 @@
+{
+  "name": "dot-x-connector-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "test:runtime": "node --test runtime-test/*.test.mjs",
+    "build:dry-run": "node scripts/dry-run.mjs",
+    "vendor:rebuild": "node scripts/vendor-twitter-text.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "5.20261001.0-alpha",
+    "twitter-text": "3.1.0",
+    "wrangler": "4.146.0",
+    "esbuild": "0.28.1"
+  },
+  "license": "MIT"
+}

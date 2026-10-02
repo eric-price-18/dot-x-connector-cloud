@@ -1,0 +1,11 @@
+{
+  "issuer": "https://identity.example.invalid/v1/apps/example-project",
+  "authorization_endpoint": "https://identity.example.invalid/oauth2/v1/apps/authorize",
+  "token_endpoint": "https://identity.example.invalid/oauth2/v1/apps/token",
+  "jwks_uri": "https://identity.example.invalid/example-project/.well-known/jwks.json",
+  "userinfo_endpoint": "https://identity.example.invalid/oauth2/v1/apps/userinfo",
+  "code_challenge_methods_supported": ["S256"],
+  "response_types_supported": ["code"],
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
+  "id_token_signing_alg_values_supported": ["RS256"]
+}

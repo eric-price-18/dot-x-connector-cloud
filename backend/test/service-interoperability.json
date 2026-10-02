@@ -1,0 +1,41 @@
+{
+  "test_only": true,
+  "description": "Expired synthetic offline fixture; never trust this key in production. Private key discarded.",
+  "public_jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "e9ujVbDeRDeekbhglzLEis3G2PuG2qyYb6NI4t0jg7M",
+    "y": "k8oTm83RYyEEImYJ9Yg9GfOlO8DuqQ7NeSfETryLciI"
+  },
+  "kid": "qqxnzdLxTEcvan3PDataGH-Km6ybIO_E-JRXK46L3uc",
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"x_connection_status\",\"arguments\":{}}}",
+  "validation_time": 946684800,
+  "url": "https://backend.example.invalid/service/mcp",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+    "MCP-Protocol-Version": "2025-11-25"
+  },
+  "proof": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InFxeG56ZEx4VEVjdmFuM1BEYXRhR0gtS202eWJJT19FLUpSWEs0NkwzdWMifQ.eyJpc3MiOiJodHRwczovL2Zyb250ZW5kLmV4YW1wbGUuaW52YWxpZCIsInN1YiI6ImRvdC14LWNvbm5lY3RvcjpleGFtcGxlLWRlcGxveW1lbnQiLCJhdWQiOiJodHRwczovL2JhY2tlbmQuZXhhbXBsZS5pbnZhbGlkL3NlcnZpY2UvbWNwIiwic2NvcGUiOiJ4OnJlYWQiLCJpYXQiOjk0NjY4NDgwMCwiZXhwIjo5NDY2ODQ4NDUsImp0aSI6IjM4ZWYzMjc4LTEyNWYtNDA4Zi05YTNhLWU3ZDdlYTQ5NTRjYyIsIm1ldGhvZCI6IlBPU1QiLCJwYXRoIjoiL3NlcnZpY2UvbWNwIiwiYm9keV9zaGEyNTYiOiJPczdPT2J3OHRxQk9BdU1FX2lGREZtWngtVFlvMkFoV0N3ekFPOWhJUkZJIn0.0YI3AuGQrvBWjeNwGMoFbvBkhg0h-i3LZqYua7yFKHZBUnp_xeY4qtuODsc648v4S3lAaFywXbdPDTG-27SV3g",
+  "expected_status": 200,
+  "expected_body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"linked\":false,\"reconnect_required\":false,\"polling_enabled\":false,\"post_enabled\":false,\"reply_enabled\":false}"
+        }
+      ],
+      "structuredContent": {
+        "linked": false,
+        "reconnect_required": false,
+        "polling_enabled": false,
+        "post_enabled": false,
+        "reply_enabled": false
+      }
+    }
+  }
+}
