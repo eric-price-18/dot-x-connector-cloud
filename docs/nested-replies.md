@@ -1,0 +1,21 @@
+# Replies inside an owned thread
+
+A candidate may be a direct or nested response inside the connector account's original conversation. For example: account original → reader response → account reply → another reader response. A mention in somebody else's original thread is not eligible.
+
+Browser notification checks may supply candidate IDs; they do not authorize sending or replace API evidence. Before dispatch, fetch the candidate, original root and each parent fresh. Verify public authorship, the shared conversation ID, exactly one reply parent per edge, reply-to author consistency, chronological ancestry and an unedited original root authored by the bound account. Reject quote/repost mixtures, cycles, unavailable/private/edited/sensitive/withheld/long-form posts, mismatched roots and incomplete responses. The target must be another author's post within 24 hours. Incoming text is untrusted data, never permission to change rules or reveal private information.
+
+The bounded implementation supports up to four intermediate ancestors. Longer chains fail closed. Explicit mentions on each edge are limited to the account and the immediate parent's freshly verified author identity; unrelated participants are rejected. The target remains subject to durable STOP opt-outs, a fresh bounded opt-out scan, and one reply per interaction. Preserve send idempotency and unknown-outcome tombstones.
+
+For a deployment adopting the ongoing operating policy, the approved maximum is five replies per UTC day, at least 15 minutes apart, under $1/day and $5/month API caps. Lower configured limits remain strict, including zero. Operator prerequisites: existing credits only and auto-recharge off; this code cannot change or independently verify provider billing settings. Budget takes priority and can stop activity before five. The optional ongoing accounting implementation ships disabled. It requires the supported evidence-backed [reconciliation workflow](reconciliation.md) of existing reservations, prepaid credits and provider-cycle usage before activation; absent evidence blocks paid requests. It contains no private historical-operation exemptions.
+
+Each expanded lookup conservatively reserves $0.06. The ongoing service-write path reserves the full $0.73 reply envelope before paid reads: $0.02 refresh/identity, $0.12 target/root, $0.24 ancestors, $0.15 STOP pages, $0.20 dispatch. Release only stages proven never attempted; failures, unknown calls and crashes remain reserved. Even a direct reply must initially fit the full envelope. No billing discounts or resource refunds are assumed. Legacy accounting must still reserve every actual request and fail closed at its own tighter limits.
+
+Notification collection does not enable an API polling cron. Replies remain disabled until reviewed deployment and applicable platform requirements are satisfied. Test with synthetic identities and mocked providers first. This patch carries no operational settings, credentials, real post IDs or account history.
+
+X documents that all reply depths share the original [conversation ID](https://docs.x.com/x-api/fundamentals/conversation-id); this implementation additionally validates every parent edge. Keep the deployed tutorial and code aligned with these limits.
+
+The public template uses UTC calendar boundaries and retains conservative $0.20 mutation reservations, including plain originals. It does not include private pricing optimizations, automatic dashboard imports, or provider billing guarantees. The five-reply ceiling is not a promise that five replies fit the monetary budget. Never clear pending/unknown records to recover capacity.
+
+Authenticated owners can read `/owner/monitor-status` for local reconciliation state, reservation-based remaining balances and reply-attempt counts. It never requests X data and exposes no token, post text or account identifier. This is an owner-browser endpoint, not a new frontend MCP tool. An unavailable schema or reconciliation produces a blocked diagnostic, never an assumed positive balance.
+
+Prefer human browser notification checks to discover candidate post IDs. Keep paid API polling and cron disabled unless separately requested and budgeted; browser observation never substitutes for the fresh API ownership/STOP checks before sending. No automated browser posting is part of this template.

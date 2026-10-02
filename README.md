@@ -12,10 +12,10 @@ This is reusable source with deliberately inert examples. Bring your own account
 - Strict owner access-token validation and separate write-scope consent
 - An optional exact-intent, one-time mention canary with a persistent singleton claim
 - Durable write receipts, duplicate suppression and conservative uncertain outcomes
-- Fixed-window credit reservations, request limits and operation limits
+- Fixed-window credit reservations, request limits and operation limits; optional default-off ongoing accounting with UTC caps and reply spacing
 - Offline Node, real-workerd/D1 and frontend/backend interoperability tests
 
-The own-thread reply implementation only considers eligible direct responses to an account-owned original root. It checks public authorship, freshness, opt-outs and one automated reply per interaction, and requires an opt-out notice. Replies ship disabled. Review the [platform policy caveat](docs/costs-and-policy.md) before use.
+The own-thread reply implementation considers eligible direct and nested responses inside an account-owned original thread, after fresh bounded parent-chain verification. It checks public authorship, freshness, opt-outs and one automated reply per interaction, and requires an opt-out notice. Replies ship disabled. Review the [platform policy caveat](docs/costs-and-policy.md) before use.
 
 Direct Messages, arbitrary API proxying, following, liking, deletion, media upload and quote posts are outside this package. It does not provide instant notifications or a general-purpose conversation bot.
 

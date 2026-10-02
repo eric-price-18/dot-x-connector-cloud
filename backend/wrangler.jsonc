@@ -31,6 +31,8 @@
     "LIVE_X_ENABLED": "false",
     "LIVE_IDP_ENABLED": "false",
     "READ_POLLING_ENABLED": "false",
+    "X_ONGOING_OPERATIONS_ENABLED": "false",
+    "ONGOING_MAINTENANCE_ENABLED": "false",
     "POST_ENABLED": "false",
     "REPLY_ENABLED": "false",
     "X_ORIGINAL_POSTS_ENABLED": "false",

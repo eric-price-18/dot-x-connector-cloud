@@ -1,3 +1,4 @@
+import { ongoing } from './ongoing.mjs';
 import { assert, basicAuth, digest, enabled, open, randomValue, responseJson, SafeError, seal, xConfiguration } from './security.mjs';
 import { cachedRead } from './reads.mjs';
 import { REPLY_DEPLOYMENT_APPROVED } from './write-policy.mjs';
@@ -21,6 +22,7 @@ export class XConnector {
 
   async request(path, { method = 'GET', token, body, records = 0, write = false, oauth = false, grantVersion, creditMicroUsd } = {}) {
     await this.store.reserveX(this.env, records, write, creditMicroUsd);
+    const creditAttempt=this.store.creditAttempt;
     if(write) {
       const current=await this.store.account();this.bind(current);
       assert(Number.isSafeInteger(grantVersion) && current.version===grantVersion && current.refresh_status==='idle',
@@ -48,7 +50,9 @@ export class XConnector {
     }
     assert(response.status !== 401, 'X_RECONNECT_REQUIRED', 409);
     assert(response.ok, 'X_UPSTREAM_REJECTED', 502);
-    return responseJson(response);
+    const result=await responseJson(response);
+    if(ongoing(this.env)&&!result.errors)await this.store.resolveCredit(creditAttempt);
+    return result;
   }
 
   tokenSet(data, requested, previous) {
@@ -206,6 +210,7 @@ export class XConnector {
   }
 
   async send(kind, args) {
+    assert(!ongoing(this.env),'ONGOING_USE_SERVICE_WRITE_ROUTE',403);
     assert(kind === 'post' || kind === 'reply', 'INVALID_SEND_KIND');
     if(kind==='reply') assert(REPLY_DEPLOYMENT_APPROVED,'REPLY_APPROVAL_REQUIRED',403);
     assert(enabled(this.env[kind === 'post' ? 'POST_ENABLED' : 'REPLY_ENABLED']), `${kind.toUpperCase()}_DISABLED`, 403);

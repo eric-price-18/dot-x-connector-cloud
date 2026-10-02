@@ -13,7 +13,7 @@ const target=()=>({id:'20001',author_id:'5050',conversation_id:'10001',text:'An 
 const root=()=>({id:'10001',author_id:'4242',conversation_id:'10001',text:'An original observation',created_at:new Date((now-3600)*1000).toISOString(),referenced_posts:[],edit_history_post_ids:['10001'],entities:{mentions:[]}});
 const cases=[
  ['foreign root','reply_root_not_own_original',v=>{v.root.author_id='6060'}],
- ['nested interaction','reply_not_direct_to_own_root',v=>{v.target.referenced_posts[0].id='9999'}],
+ ['unavailable nested ancestor','x_request_uncertain',v=>{v.target.referenced_posts[0].id='9999'}],
  ['self interaction','self_reply_not_supported',v=>{v.target.author_id='4242'}],
  ['multiparty mention','multiparty_reply_not_supported',v=>{v.target.text+=' @other';v.target.entities.mentions=[{id:'7070',username:'other'}]}],
  ['protected author','public_reply_author_unverified',v=>{v.protected=true}],

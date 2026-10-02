@@ -9,7 +9,7 @@ import { SERVICE } from '../src/service.mjs';
 import { REPLY_DEPLOYMENT_APPROVED, WRITE_AUDIENCE } from '../src/write-policy.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
-const gates=['LIVE_X_ENABLED','LIVE_IDP_ENABLED','READ_POLLING_ENABLED','POST_ENABLED','REPLY_ENABLED',
+const gates=['ONGOING_MAINTENANCE_ENABLED','X_ONGOING_OPERATIONS_ENABLED','LIVE_X_ENABLED','LIVE_IDP_ENABLED','READ_POLLING_ENABLED','POST_ENABLED','REPLY_ENABLED',
   'OWNER_LOGIN_ENABLED','SERVICE_ENABLED','SERVICE_WRITE_ENABLED','X_ORIGINAL_POSTS_ENABLED',
   'X_REPOSTS_ENABLED','X_OWN_THREAD_REPLIES_ENABLED','X_WRITE_STATUS_ENABLED','OWNER_X_WRITE_CONSENT_ENABLED'];
 for(const name of ['wrangler.jsonc','config/oauth.example.json']) {
@@ -54,7 +54,7 @@ const db=new DatabaseSync(':memory:');
 for(const file of readdirSync(resolve(root,'migrations')).filter(v=>v.endsWith('.sql')).sort())
   db.exec(readFileSync(resolve(root,'migrations',file),'utf8'));
 const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(v=>v.name);
-assert.deepEqual(tables,['accounts','budgets','canary_mention','cooldowns','oauth_states','owner_login_state','owner_sessions','reply_interactions','reply_opt_out_scans','reply_opt_outs','sends','service_writes','snapshots','x_credit_budgets']);
+assert.deepEqual(tables,['accounts','budgets','canary_mention','cooldowns','oauth_states','ongoing_credit_state','ongoing_cycles','ongoing_legacy_carry','ongoing_maintenance','ongoing_operations','ongoing_spend','owner_login_state','owner_sessions','reply_interactions','reply_opt_out_scans','reply_opt_outs','sends','service_writes','snapshots','x_credit_budgets']);
 assert.equal(db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
 const sqliteVersion=db.prepare('SELECT sqlite_version() AS version').get().version;db.close();
 console.log(`PASS: ${modules} modules parse; ${runtimeBytes} runtime bytes; migrations/integrity (SQLite ${sqliteVersion}); generic trust pins, expired immutable budget, disabled live/write/reply gates and empty schedules verified.`);

@@ -1,3 +1,4 @@
+import { ongoing, reserveOngoing, periods } from './ongoing.mjs';
 import { assert, positiveLimit, randomValue, SafeError } from './security.mjs';
 import { CREDIT_RUN_ID,CREDIT_RUN_DEADLINE,CREDIT_MAX_MICROUSD } from './credit-policy.mjs';
 
@@ -58,21 +59,41 @@ export class Store {
     return row.encrypted_payload;
   }
 
-  async reserve(bucket, amount, limit, expires) {
+  async reserve(bucket, amount, limit, expires, detailed = false) {
     const row = await this.first(`INSERT INTO budgets (bucket,used,expires_at)
       SELECT ?,?,? WHERE ?<=?
       ON CONFLICT(bucket) DO UPDATE SET used=budgets.used+excluded.used
       WHERE budgets.used+excluded.used<=? RETURNING used`, bucket, amount, expires, amount, limit, limit);
-    assert(row, 'LOCAL_BUDGET_EXHAUSTED', 429);
+    assert(row, !detailed ? 'LOCAL_BUDGET_EXHAUSTED' : bucket.startsWith('requests:day:') ? 'LOCAL_REQUESTS_DAY_EXHAUSTED'
+      : bucket.startsWith('requests:hour:') ? 'LOCAL_REQUESTS_HOUR_EXHAUSTED'
+      : bucket.startsWith('records:month:') ? 'LOCAL_RECORDS_MONTH_EXHAUSTED'
+      : bucket.startsWith('writes:day:') ? 'LOCAL_WRITES_DAY_EXHAUSTED' : 'LOCAL_BUDGET_EXHAUSTED', 429);
   }
 
   checkCreditWindow(env) {
+    if(ongoing(env)) {
+      const day=periods(this.clock()).day;
+      assert((!this.operationDay||this.operationDay===day) && periods(this.clock()+90).day===day && (!this.ongoingReservationDay||this.ongoingReservationDay===day),'ONGOING_CALENDAR_BOUNDARY_PAUSE',429);
+      assert(!this.ongoingCycleEnd||this.clock()+90<this.ongoingCycleEnd,'ONGOING_PROVIDER_BOUNDARY_PAUSE',429);
+      return;
+    }
     const expires=Number(env.X_CREDIT_EXPIRES_AT);
     assert(env.X_CREDIT_BUDGET_ID===CREDIT_RUN_ID && Number.isSafeInteger(expires)
       && expires<=CREDIT_RUN_DEADLINE && expires>this.clock(),'X_CREDIT_AUTHORIZATION_REQUIRED',503);
   }
 
-  async reserveCredit(env,amount) {
+  async reserveCredit(env,amount,headroom=0) {
+    if(ongoing(env)) {
+      this.checkCreditWindow(env);
+      if(this.prepaidCredit!==undefined) {
+        assert(this.prepaidCredit.remaining>=amount,'ONGOING_PREPAID_EXHAUSTED',429);
+        this.prepaidCredit.remaining-=amount;this.prepaidCredit.consumed+=amount;
+        this.creditAttempt={prepaid:this.prepaidCredit,amount};return;
+      }
+      const day=periods(this.clock()).day;
+      const result=await reserveOngoing(this,env,amount,headroom);
+      this.ongoingReservationDay=day;this.creditAttempt={id:result,amount};return result;
+    }
     this.checkCreditWindow(env);
     const id=env.X_CREDIT_BUDGET_ID,account=env.X_EXPECTED_USER_ID;
     const cap=Number(env.X_CREDIT_CAP_MICROUSD),expires=Number(env.X_CREDIT_EXPIRES_AT);
@@ -93,26 +114,32 @@ export class Store {
     assert(row,'X_CREDIT_CAP_REACHED_OR_CHANGED',429);
   }
 
-  async reserveX(env, records = 0, write = false, creditMicroUsd = undefined) {
+  async resolveCredit(attempt=this.creditAttempt) {
+    if(!attempt)return;
+    if(attempt.prepaid){attempt.prepaid.resolved+=attempt.amount;return;}
+    try {await this.run("UPDATE ongoing_spend SET unresolved_micro_usd=0 WHERE id=?",attempt.id);} catch {}
+  }
+
+  async reserveX(env, records = 0, write = false, creditMicroUsd = undefined, headroom=0) {
     // Worst-case posted prices, no ownership discount or dedup assumption. All
     // mutations reserve $0.20 (including URL posts); unclassified auth/user reads
     // reserve $0.01. Expanded reads pass an explicit conservative bound.
-    await this.reserveCredit(env,creditMicroUsd ?? (write?200000:records?records*5000:10000));
+    await this.reserveCredit(env,creditMicroUsd ?? (write?200000:records?records*5000:10000),headroom);
     const now = this.clock();
     const cooldown = await this.first("SELECT until_at FROM cooldowns WHERE name='x'");
     assert(!cooldown || cooldown.until_at <= now, 'X_RATE_LIMIT_COOLDOWN', 429);
-    const day = Math.floor(now / 86400);
+    const day = ongoing(env)?periods(now).day:Math.floor(now / 86400);
     const hour = Math.floor(now / 3600);
     const date = new Date(now * 1000);
-    const month = `${date.getUTCFullYear()}-${date.getUTCMonth()+1}`;
-    const monthEnd = Date.UTC(date.getUTCFullYear(), date.getUTCMonth()+1, 1) / 1000;
+    const month = ongoing(env)?periods(now).month:`${date.getUTCFullYear()}-${date.getUTCMonth()+1}`;
+    const monthEnd = ongoing(env)?now+40*86400:Date.UTC(date.getUTCFullYear(), date.getUTCMonth()+1, 1) / 1000;
     // Reservations are deliberately pessimistic and never refunded after failure.
-    await this.reserve(`requests:day:${day}`, 1, positiveLimit(env,'MAX_X_REQUESTS_DAY',16,100), (day+1)*86400);
-    await this.reserve(`requests:hour:${hour}`, 1, positiveLimit(env,'MAX_X_REQUESTS_HOUR',8,20), (hour+1)*3600);
+    await this.reserve(`requests:day:${day}`, 1, positiveLimit(env,'MAX_X_REQUESTS_DAY',16,100), (ongoing(env)?now+40*86400:(day+1)*86400), ongoing(env));
+    await this.reserve(`requests:hour:${hour}`, 1, positiveLimit(env,'MAX_X_REQUESTS_HOUR',8,20), (hour+1)*3600, ongoing(env));
     if (records) await this.reserve(`records:month:${month}`, records,
-      positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000), monthEnd);
+      positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000), monthEnd, ongoing(env));
     if (write) await this.reserve(`writes:day:${day}`, 1,
-      positiveLimit(env,'MAX_WRITES_DAY',2,10), (day+1)*86400);
+      positiveLimit(env,'MAX_WRITES_DAY',2,ongoing(env)?6:10), (ongoing(env)?now+40*86400:(day+1)*86400), ongoing(env));
   }
 
   async setCooldown(until) {

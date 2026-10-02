@@ -265,10 +265,12 @@ export function createWorker(dependencies = {}) {
         if (url.pathname === WRITE_PATH) return await writeServiceMcp(request,env);
         cfg = publicConfiguration(env);
         originCheck(request, env, cfg);
-        if (['/owner','/owner/login','/owner/callback','/owner/connect','/owner/logout'].includes(url.pathname)) {
+        if (['/owner','/owner/login','/owner/callback','/owner/connect','/owner/logout','/owner/monitor-status','/owner/maintenance/ongoing-reconcile'].includes(url.pathname)) {
           const owner=new OwnerLogin(env,configuration(env),transport('idp',env),req=>authenticate(req,env,'x:read'),clock);
-          const get=['/owner','/owner/callback'].includes(url.pathname);
+          const get=['/owner','/owner/callback','/owner/monitor-status'].includes(url.pathname);
           assert(request.method===(get?'GET':'POST'),'METHOD_NOT_ALLOWED',405);
+          if(url.pathname==='/owner/maintenance/ongoing-reconcile')return await owner.maintenance(request);
+          if(url.pathname==='/owner/monitor-status')return await owner.monitor(request);
           if(url.pathname==='/owner')return await owner.page(request);
           if(url.pathname==='/owner/login')return await owner.start(request);
           if(url.pathname==='/owner/callback')return await owner.callback(request);

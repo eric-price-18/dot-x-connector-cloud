@@ -1,5 +1,15 @@
 # Agent-followable setup guide
 
+## Human setup checklist — complete together before activation
+
+- Choose your private backend/frontend targets and bound account; obtain your own OAuth applications and required secrets through their supported secure setup flows.
+- Review current provider terms, pricing, scopes and AI-reply approval requirements. Set provider spending controls and disable auto-recharge if adopting the sample ongoing policy.
+- Choose finite operating limits and a calendar; this public ongoing template uses UTC, $1/day, $5/month, at most five reply attempts per day and 15-minute spacing. Lower limits remain binding.
+- Supply verified billing-cycle and prepaid-credit evidence for the supported [reconciliation runbook](reconciliation.md). The signed-in owner form carries historical liabilities automatically; no private activation records ship in source.
+- Approve only the required operations after offline checks and owner-boundary verification. Leave replies, paid polling and cron off until their distinct prerequisites are met; human notification checks are preferred for candidate discovery.
+
+After those inputs are ready, follow the sequence below in one dedicated private deployment copy. Never copy operational values into the reusable public repository.
+
 Use the exact source version you reviewed. Start offline and configure only a separate private deployment checkout. These are implementation steps, not permission to create grants, spend money or publish.
 
 1. Agree on the scope before setup
@@ -50,7 +60,7 @@ Review current X prices and choose a fresh immutable run ID, finite deadline, co
 
 Enable only owner authentication and the minimum provider access required for the approved read-only connection, keeping posting, replies, service writes and polling off. Open backend /owner, sign in to Descope as the pinned owner, then review and approve the X OAuth screen in the intended account. The owner session is short-lived; starting again is expected after expiry. Confirm account binding and stored scopes. A linked status is stored state, not proof that a token is fresh or X access is ready.
 
-Enable the signed read service and frontend SERVICE_BRIDGE_ENABLED only after pin verification. Connect the private Site's MCP plugin through its supported install/authorization flow and test x_connection_status. When operation gates change, the frontend tools/list changes, but an existing long-lived task may retain a stale tool catalog. Try a fresh conversation/task or supported catalog refresh before reconnecting; seeing a newly enabled tool does not inherently require a new grant. Read tools return the cache; they do not fetch X on demand. Enable bounded backend polling separately only if wanted, with conservative read limits and a finite schedule/budget. Verify cache timestamps, stale and pending_pages fields. Polling is not instant push, and having this plugin does not itself wake the dot or create ongoing monitoring.
+Enable the signed read service and frontend SERVICE_BRIDGE_ENABLED only after pin verification. Connect the private Site's MCP plugin through its supported install/authorization flow and test x_connection_status. When operation gates change, the frontend tools/list changes, but an existing long-lived task may retain a stale tool catalog. Try a fresh conversation/task or supported catalog refresh before reconnecting; seeing a newly enabled tool does not inherently require a new grant. Read tools return the cache; they do not fetch X on demand. Prefer human browser notification checks for candidate IDs. Keep paid polling off by default; enable bounded backend polling separately only if wanted, with conservative read limits and a finite schedule/budget. Verify cache timestamps, stale and pending_pages fields. Polling is not instant push, and having this plugin does not itself wake the dot or create ongoing monitoring.
 
 8. Enable only the explicitly authorized write capabilities
 
@@ -64,7 +74,7 @@ A fresh write intent gets one lowercase UUID v4; preserve it thereafter. Text mu
 
 Start with one approved harmless original post, not an unsolicited reply. Verify its durable succeeded receipt and public post ID. After pending, unknown, a timeout or an ambiguous error, query x_get_write_status with the same key. Do not resend, change the key, erase receipts or assume not_found makes a retry safe. The backend is conservative; it cannot guarantee exactly-once delivery across an external network.
 
-The own-thread implementation is intentionally narrow: eligible direct responses from another public author to the account's original root; fresh ownership/interaction checks; opt-out scanning; durable one-reply-per-interaction enforcement; and the exact “Reply STOP to opt out.” notice within the text limit. These are technical constraints, not a declaration that any particular use is policy-approved.
+The own-thread implementation is intentionally narrow: eligible direct and nested responses from another public author inside the account's original thread, with fresh verification of every parent back to that root (at most four intermediate ancestors); fresh ownership/interaction checks; opt-out scanning; durable one-reply-per-interaction enforcement; and the exact “Reply STOP to opt out.” notice within the text limit. These are technical constraints, not a declaration that any particular use is policy-approved.
 
 9. Costs, operation and stopping
 
@@ -87,3 +97,5 @@ Troubleshooting checkpoints
 - Unknown write outcome: retain the original key and receipt and investigate without another mutation.
 
 Recommended acceptance for a new deployment: correct private owner boundaries, matching service pin, intended numeric X identity, current grant/scopes, native-client status-only transport, finite cost limits and only the authorized tools enabled. Verify cached-read freshness only after separately approved live polling. If polling has not run and the cache is empty/stale, record live fetch/freshness as unverified rather than treating a successful cached-read response as proof. A live success proves that tested path at that time; it does not prove future billing, policy approval or every untested feature. Keep deployment details, approval records and private conversations out of the public source and tutorial.
+
+For nested replies and optional ongoing budgets, complete the grouped operator prerequisites in [configuration](configuration.md#optional-ongoing-policy-disabled-template), then follow [nested replies](nested-replies.md). This public candidate has offline verification only; private deployment results do not establish live acceptance of this adaptation. Do not enable replies until the platform-approval and account-specific prerequisites above are satisfied.

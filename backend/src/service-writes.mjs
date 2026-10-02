@@ -1,6 +1,7 @@
+import { ongoing, claimOperation, reserveOngoing, periods } from './ongoing.mjs';
 import { assert, digest, enabled, positiveLimit, readBodyBytes, SafeError } from './security.mjs';
 import { SERVICE } from './service.mjs';
-import { ReplyGuard, OPT_OUT_NOTICE } from './reply-guard.mjs';
+import { ReplyGuard, OPT_OUT_NOTICE, REPLY_PREFLIGHT_MICROUSD } from './reply-guard.mjs';
 import { canaryMentionAuthorization } from './canary-mention.mjs';
 import { isPostId } from './write-validation.mjs';
 
@@ -97,7 +98,7 @@ export class ServiceWrites {
         return receipt(name,key,'rejected','idempotency_binding_conflict');
       return this.fromRow(row,key);
     }
-    let x,keyHash,ownedSend=false;
+    let x,keyHash,ownedSend=false,prepaidId;
     const replyGuard=isReply?new ReplyGuard(this.env,this.store,this.clock):null;
     try {
       if(isReply)await replyGuard.checkUnclaimed(args);
@@ -115,13 +116,30 @@ export class ServiceWrites {
         }
         ownedSend=true;
       }
+      if(ongoing(this.env)) {
+        assert(name!=='x_repost','ONGOING_REPOST_NOT_AUTHORIZED',403);
+        this.store.operationDay=periods(this.clock()).day;
+        await claimOperation(this.store,this.env,isReply?'reply':'original',key);
+        if(isReply) {
+          // Reserve the full bounded workflow BEFORE any paid token/lookup call:
+          // refresh + identity .02 + root/target .12 + four ancestors .24 + STOP .15 + dispatch .20.
+          const day=periods(this.clock()).day;
+          prepaidId=await reserveOngoing(this.store,this.env,REPLY_PREFLIGHT_MICROUSD);
+          this.store.ongoingReservationDay=day;
+          this.store.prepaidCredit={remaining:REPLY_PREFLIGHT_MICROUSD,consumed:0,resolved:0};
+          x.store.prepaidCredit=this.store.prepaidCredit;
+          x.store.ongoingReservationDay=day;
+          x.store.ongoingCycleEnd=this.store.ongoingCycleEnd;
+          x.store.operationDay=day;
+        }
+      }
       const grant=await x.tokens({withVersion:true});
       const tokens=grant.tokens;
       assert(tokens.scopes.includes('tweet.write'),'X_WRITE_SCOPE_REQUIRED',403);
       const interaction=isReply?await replyGuard.verify(x,tokens.access_token,args):null;
-      if(isReply) {
+      if(isReply && !ongoing(this.env)) {
         const day=Math.floor(this.clock()/86400);
-        await this.store.reserve(`replies:day:${day}`,1,positiveLimit(this.env,'MAX_REPLIES_DAY',1,2),(day+1)*86400);
+        await this.store.reserve(`replies:day:${day}`,1,positiveLimit(this.env,'MAX_REPLIES_DAY',1,5),(day+1)*86400);
       }
       if(name==='x_repost') {
         const day=Math.floor(this.clock()/86400);
@@ -129,7 +147,7 @@ export class ServiceWrites {
       }
       // Existing request/hour/day and total write budgets stay in force and are
       // pessimistic: unsuccessful/unknown dispatches are never refunded.
-      await this.store.reserveX(this.env,0,true);
+      await this.store.reserveX(this.env,0,true,undefined);
       const current=await this.store.account();x.bind(current);
       assert(current.version===grant.version && current.refresh_status==='idle','X_GRANT_SUPERSEDED',409);
       if(isReply) {
@@ -143,10 +161,24 @@ export class ServiceWrites {
       // Only pre-dispatch failures reach this catch. dispatch contains all
       // transport, response and post-dispatch cooldown errors as unknown.
       return this.finish(name,key,'rejected',codeOf(error),undefined,ownedSend?keyHash:undefined);
+    } finally {
+      // Release only budget for stages never attempted. Each attempted/unknown
+      // call keeps its full bound; a crash keeps the entire original envelope.
+      if(prepaidId && this.store.prepaidCredit) {
+        try {await this.store.run(`UPDATE ongoing_spend SET amount=?,unresolved_micro_usd=? WHERE id=? AND kind='api' AND amount=?`,this.store.prepaidCredit.consumed,this.store.prepaidCredit.consumed-this.store.prepaidCredit.resolved,prepaidId,REPLY_PREFLIGHT_MICROUSD);} catch {}
+      }
     }
   }
   async dispatch(x,path,token,payload,name,args,grantVersion,canary) {
     this.store.checkCreditWindow(this.env);
+    if(ongoing(this.env)&&name==='x_reply') {
+      const slot=await this.store.first(`UPDATE ongoing_operations SET created_at=? WHERE intent=? AND kind='reply'
+        AND NOT EXISTS(SELECT 1 FROM ongoing_operations AS other WHERE other.account_id=ongoing_operations.account_id
+          AND other.kind='reply' AND other.intent<>ongoing_operations.intent AND other.created_at>?) RETURNING intent`,
+        this.clock(),args.idempotency_key,this.clock()-900);
+      assert(slot,'ONGOING_DISPATCH_COOLDOWN',429);
+      this.store.checkCreditWindow(this.env);
+    }
     assert(!canary||this.clock()<canary.expires,'CANARY_MENTION_EXPIRED',403);
     const unknown=code=>({state:'unknown',code});
     let response;
@@ -179,6 +211,7 @@ export class ServiceWrites {
         return {state:'succeeded',code:'repost_succeeded',post_id:args.post_id};
       }
       assert(isPostId(result.data?.id),'X_INVALID_RESPONSE',502);
+      if(ongoing(this.env))await this.store.resolveCredit();
       return {state:'succeeded',code:name==='x_reply'?'reply_succeeded':'post_succeeded',post_id:result.data.id};
     } catch { return unknown('x_result_unverified'); }
   }

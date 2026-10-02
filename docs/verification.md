@@ -5,21 +5,29 @@ Local source-export verification, 2 October 2026, Linux with Node 24.19.0. These
 ## Passed
 
 - Clean dependency installation with both pinned package lockfiles
-- Backend syntax/configuration (56 modules), five empty-schema migrations and integrity checks
-- Backend Node suite: 429 passed, zero failed or skipped
-- Backend workerd/local D1 suite: 77 passed, zero failed or skipped
+- Backend syntax/configuration (65 modules), six empty-schema migrations and integrity checks
+- Backend Node suite: 449 passed, zero failed or skipped
+- Backend workerd/local D1 suite: 85 passed, zero failed or skipped
 - Backend Wrangler dry-run with network denial and telemetry disabled
-- Bundled parser rebuilt byte-for-byte from pinned dependencies
+- Prior-release evidence reused for the unchanged bundled parser: rebuilt byte-for-byte from pinned dependencies
 - Frontend shipped-defaults regression: two passed
 - Frontend/core and cross-package suite: 75 passed, zero failed or skipped
 - Actual MCP-ingress frontend/backend dual-workerd pipeline with real local D1 and mocked X
 - Optional MCP transport metadata accepted, validated and stripped before signing; malformed metadata and attempted authority overrides denied
 - Native-shaped status-only ingress with every mutation/live-X gate off and zero mocked X/identity-provider calls
-- Fresh supported-starter overlay: TypeScript and full production build
-- Built overlay smoke: setup routing, anonymous/other-owner rejection, security headers and default read-only MCP discovery, with outbound requests denied
+- Prior-release evidence reused for unchanged frontend modules: fresh supported-starter TypeScript and full production build
+- Prior-release built-overlay smoke evidence reused: setup routing, anonymous/other-owner rejection, security headers and default read-only MCP discovery, with outbound requests denied
 - Source-tree review for credentials, account/deployment identifiers, encoded fixture claims, runtime artifacts and private provenance
 
 Backend workerd fixtures use an explicit synthetic 2035 clock and advance it directly for expiry tests. Historical Node and cross-package cases use a fixed 2000 clock. Test clock controls and in-memory credit fixtures are never production entrypoints. The frontend suite's temporary test copy enables its read bridge only inside that copy. It tests the distributed default-off module separately. Public example service endpoints are reserved domains. Backend test vectors are newly generated, expired synthetic proofs with discarded private keys.
+
+- Generic reconciliation tests cover the real owner login/form path, CSRF and origin denial, exact account binding, shutdown/default-off gates, schema checks, D1 atomicity, replay, full legacy carry and no credit replenishment. The local validator smoke verifies restrictive output permissions and rejects overwrite or in-source output.
+
+## Nested/ongoing candidate boundary
+
+The local adaptation additionally covers four intermediate ancestors, same-ID target/root rejection before a second lookup, fresh parent evidence, full $0.73 preflight reservation, atomic five-attempt ceiling, 900-second spacing, missing reconciliation, conservative unresolved liabilities, and owner-only local diagnostics. No live X call or deployment was used to verify this candidate. Private deployment results and the private candidate's test counts are not this source's evidence.
+
+Reconciliation uses the shipped owner form and local validator with administrator-supplied evidence. The template provides no automatic dashboard import, private historical exclusions or activated budget records. UTC calendar defaults and conservative mutation reservations deliberately avoid private operational assumptions. Paid polling and all gates remain disabled.
 
 ## Reproducibility
 

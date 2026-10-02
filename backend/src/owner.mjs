@@ -1,3 +1,5 @@
+import { maintenanceGate, reconciliationManifest, reconcileOngoing } from './maintenance.mjs';
+import { ownerDiagnostics } from './ongoing-diagnostics.mjs';
 import { assert, digest, enabled, httpsUrl, open, randomValue, readBody, responseJson, seal } from './security.mjs';
 import { Store } from './storage.mjs';
 
@@ -168,6 +170,30 @@ export class OwnerLogin {
     if(validate)identity=await this.authenticate(new Request(`${this.cfg.base}/owner`,{headers:{authorization:`Bearer ${payload.token}`}}));
     return {hash,csrf:payload.csrf,identity};
   }
+  async maintenance(request) {
+    maintenanceGate(this.env);
+    formOrigin(request,this.cfg);
+    const session=await this.session(request);
+    await csrfForm(request,session.csrf);
+    const result=await reconcileOngoing(this.store,this.env);
+    if(request.headers.get('accept')?.includes('text/html'))return document(
+      '<p>Spending reconciliation completed. Posting, replies and polling remain disabled.</p><p><a href="/owner">Return to owner setup</a></p>',new URL(this.cfg.issuer).origin);
+    return Response.json(result,{headers:safeHeaders});
+  }
+  async maintenanceControls(session,linked) {
+    if(!enabled(this.env.ONGOING_MAINTENANCE_ENABLED))return '';
+    let ready=Boolean(linked);
+    try {maintenanceGate(this.env);reconciliationManifest(this.env,this.clock());}catch {ready=false;}
+    return `<section><h2>Spending reconciliation</h2>
+      <p>Apply the administrator-installed billing evidence after D1 migrations. This preserves all prior reservations and enables no activity.</p>
+      ${ready?'':'<p>Waiting for a linked account, valid billing evidence and activity shutdown.</p>'}
+      <form method="post" action="/owner/maintenance/ongoing-reconcile"><input type="hidden" name="csrf" value="${session.csrf}"><button${ready?'':' disabled'}>Apply spending reconciliation</button></form></section>`;
+  }
+  async monitor(request) {
+    await this.session(request);
+    const result=await ownerDiagnostics(this.env,this.store,this.clock);
+    return Response.json(result,{headers:safeHeaders});
+  }
   async page(request) {
     const ready=enabled(this.env.OWNER_LOGIN_ENABLED);
     const origin=new URL(this.cfg.issuer).origin;
@@ -187,7 +213,7 @@ export class OwnerLogin {
     return document(`<p>You are signed in as the configured owner.</p><p>${row?'An X account is connected.':'No X account is connected yet.'}</p>
       <p>${consentText}</p><form method="post" action="/owner/connect"><input type="hidden" name="csrf" value="${session.csrf}"><button${active?'':' disabled'}>${row?'Reconnect':'Connect'} X ${writeConsent?'with approved scopes':'read-only'}</button></form>
       ${active?'':'<p>X access is currently disabled.</p>'}<form method="post" action="/owner/logout"><input type="hidden" name="csrf" value="${session.csrf}"><button>Sign out of this page</button></form>
-      <p class="quiet">Signing out ends this browser session. It does not disconnect X.</p>`,origin);
+      ${await this.maintenanceControls(session,Boolean(row))}<p class="quiet">Signing out ends this browser session. It does not disconnect X.</p>`,origin);
   }
   async connect(request, startX) {
     formOrigin(request,this.cfg);

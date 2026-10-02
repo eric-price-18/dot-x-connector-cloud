@@ -98,9 +98,13 @@ operation limits are additional guards. The dollar estimates are implementation
 assumptions, not a guarantee of current X billing; verify pricing before any
 real deployment and keep reservations conservative.
 
-Own-thread replies require a recent direct response by another public author to
-an original root owned by the connector account. They reject nested, edited,
-private, sensitive, multi-party and ambiguous records. Visible handle checks
+Own-thread replies require a recent response by another public author inside
+an original thread owned by the connector account. Direct and nested replies
+are supported after fresh root and parent-chain verification, with at most four
+intermediate ancestors. They reject edited, private, sensitive, unrelated
+participants and ambiguous records. Each edge permits explicit mentions only
+of the account and its freshly verified immediate parent author. See
+[the nested reply guide](../docs/nested-replies.md) for limits and costs. Visible handle checks
 retain an example code pin (`@example_dot_bot`) that must be reviewed alongside
 the intended account. A fresh bounded opt-out scan and atomic dispatch claim
 provide durable opt-out and one-reply-per-interaction controls. Every reply must

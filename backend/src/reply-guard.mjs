@@ -1,6 +1,8 @@
 import { assert } from './security.mjs';
 import { isPostId } from './write-validation.mjs';
 
+export const MAX_REPLY_ANCESTORS=4;
+export const REPLY_PREFLIGHT_MICROUSD=490000+MAX_REPLY_ANCESTORS*60000;
 export const OPT_OUT_NOTICE='Reply STOP to opt out.';
 export function optOutSignal(text) {
   if(typeof text!=='string')return false;
@@ -24,17 +26,25 @@ function singleHistory(post) {
   assert(Array.isArray(post.edit_history_post_ids)&&post.edit_history_post_ids.length===1&&post.edit_history_post_ids[0]===post.id,
     'EDITED_OR_UNVERIFIED_INTERACTION',403);
 }
-function participants(post,account) {
+function participants(post,account,parentUser) {
   assert(post.entities===undefined||object(post.entities),'REPLY_LOOKUP_INVALID',502);
+  const allowed=new Map([[account,'example_dot_bot']]);
+  if(parentUser && /^[A-Za-z0-9_]{1,15}$/.test(parentUser.username??''))allowed.set(parentUser.id,parentUser.username.toLowerCase());
   const mentions=post.entities?.mentions??[];
-  assert(Array.isArray(mentions)&&mentions.every(v=>object(v)&&v.id===account),'MULTIPARTY_REPLY_NOT_SUPPORTED',403);
-  // Missing/incomplete entity data must not hide a visible participant.
+  assert(Array.isArray(mentions)&&mentions.every(v=>object(v)&&allowed.has(v.id)), 'MULTIPARTY_REPLY_NOT_SUPPORTED',403);
+  // Visible handles must match fresh identity proof AND a returned mention ID.
   const visible=post.text.match(/[@＠][A-Za-z0-9_]+/g)??[];
-  assert(visible.every(v=>v.toLowerCase()==='@example_dot_bot')&&visible.length<=mentions.length,'MULTIPARTY_REPLY_NOT_SUPPORTED',403);
+  assert(visible.every(v=>v[0]==='@'&&mentions.some(m=>allowed.get(m.id)===v.slice(1).toLowerCase()))
+    &&visible.length<=mentions.length,'MULTIPARTY_REPLY_NOT_SUPPORTED',403);
+}
+function replyParent(post) {
+  const refs=references(post);
+  assert(refs.length===1&&object(refs[0])&&refs[0].type==='replied_to'&&isPostId(refs[0].id),'REPLY_NOT_DIRECT_TO_OWN_ROOT',403);
+  return refs[0].id;
 }
 
 export class ReplyGuard {
-  constructor(env,store,clock) {this.env=env;this.store=store;this.clock=clock;this.account=env.SERVICE_X_ACCOUNT_ID;}
+  constructor(env,store,clock) {this.env=env;this.store=store;this.clock=clock;this.account=env.SERVICE_X_ACCOUNT_ID;this.authors=new Map();}
   async checkUnclaimed(args) {
     assert(!await this.store.first('SELECT target_id FROM reply_interactions WHERE account_id=? AND target_id=?',
       this.account,args.in_reply_to_post_id),'REPLY_INTERACTION_ALREADY_CLAIMED',409);
@@ -52,7 +62,7 @@ export class ReplyGuard {
       'REPLY_AUTHOR_OPTED_OUT',403);
   }
   async lookup(x,token,id) {
-    const query=new URLSearchParams({'post.fields':'conversation_id,created_at,entities,text,possibly_sensitive,withheld,note_post',expansions:'author_id,referenced_posts','user.fields':'protected'});
+    const query=new URLSearchParams({'post.fields':'author_id,conversation_id,in_reply_to_user_id,referenced_posts,edit_history_post_ids,created_at,entities,text,possibly_sensitive,withheld,note_post',expansions:'author_id,referenced_posts','user.fields':'protected,username'});
     // One main post, at most three direct references and all four authors.
     // Reserve worst-case standard pricing: 4*$0.005 + 4*$0.010 = $0.060.
     const result=await x.request(`/2/tweets/${id}?${query}`,{token,records:4,creditMicroUsd:60000});
@@ -62,13 +72,15 @@ export class ReplyGuard {
     await this.ingest(post);
     assert(noErrors(result),'REPLY_LOOKUP_INVALID',502);expansionBounds(result,3,4);
     assert(post.id===id&&isPostId(post.author_id)&&isPostId(post.conversation_id)&&typeof post.text==='string'
-      &&post.text.length<=20000&&typeof post.created_at==='string'&&Number.isFinite(Date.parse(post.created_at)), 'REPLY_LOOKUP_INVALID',502);
+      &&post.text.length<=20000&&typeof post.created_at==='string'&&post.created_at.length<=40&&/^\d{4}-\d{2}-\d{2}T/.test(post.created_at)&&Number.isFinite(Date.parse(post.created_at)), 'REPLY_LOOKUP_INVALID',502);
     const users=result.includes?.users;
     assert(Array.isArray(users)&&users.every(v=>object(v)&&isPostId(v.id)&&typeof v.protected==='boolean')
       &&new Set(users.map(v=>v.id)).size===users.length&&users.filter(v=>v.id===post.author_id).length===1
       &&users.find(v=>v.id===post.author_id).protected===false,'PUBLIC_REPLY_AUTHOR_UNVERIFIED',403);
+    assert(post.possibly_sensitive===undefined||typeof post.possibly_sensitive==='boolean','REPLY_LOOKUP_INVALID',502);
     assert(post.possibly_sensitive!==true && post.withheld===undefined,'SENSITIVE_REPLY_NOT_SUPPORTED',403);
     assert(post.note_post===undefined && post.note_tweet===undefined,'LONG_FORM_REPLY_NOT_SUPPORTED',403);
+    this.authors.set(post.author_id,users.find(v=>v.id===post.author_id));
     references(post);singleHistory(post);return post;
   }
   async catchUp(x,token) {
@@ -121,22 +133,32 @@ export class ReplyGuard {
   }
   async verify(x,token,args) {
     const target=await this.lookup(x,token,args.in_reply_to_post_id);
-    // Opt-out ingestion intentionally precedes eligibility checks: STOP on a
-    // reply to our automated reply must be honored, even though that thread is
-    // not itself eligible for another automated reply.
+    // Ingest STOP before eligibility, including nested or otherwise rejected posts.
     await this.ingest(target);await this.rejectOptOut(target.author_id);
     assert(target.author_id!==this.account,'SELF_REPLY_NOT_SUPPORTED',403);
-    participants(target,this.account);
-    const refs=references(target);
-    assert(refs.length===1&&refs[0].type==='replied_to'&&isPostId(refs[0].id)
-      &&refs[0].id===target.conversation_id&&(target.in_reply_to_user_id===undefined||target.in_reply_to_user_id===this.account),
-      'REPLY_NOT_DIRECT_TO_OWN_ROOT',403);
-    const root=await this.lookup(x,token,refs[0].id);
+    assert(target.id!==target.conversation_id,'REPLY_ANCESTRY_INVALID',403);
+    replyParent(target);
+    const root=await this.lookup(x,token,target.conversation_id);
     assert(root.author_id===this.account&&root.id===root.conversation_id&&references(root).length===0
       &&!root.in_reply_to_user_id,'REPLY_ROOT_NOT_OWN_ORIGINAL',403);
     participants(root,this.account);
     const created=Date.parse(target.created_at)/1000,rootCreated=Date.parse(root.created_at)/1000;
     assert(created<=this.clock()+5&&created>=this.clock()-86400&&rootCreated<=created,'REPLY_TARGET_NOT_RECENT',403);
+    let child=target,depth=0;
+    const seen=new Set([target.id]);
+    while(child.id!==root.id) {
+      const parentId=replyParent(child);
+      assert(!seen.has(parentId),'REPLY_ANCESTRY_INVALID',403);
+      assert(parentId===root.id||depth<MAX_REPLY_ANCESTORS,'REPLY_ANCESTRY_LIMIT',403);
+      const parent=parentId===root.id?root:await this.lookup(x,token,parentId);
+      if(parentId!==root.id)depth++;
+      assert(parent.conversation_id===root.id
+        &&(child.in_reply_to_user_id===undefined||child.in_reply_to_user_id===parent.author_id)
+        &&Date.parse(parent.created_at)<=Date.parse(child.created_at)
+        &&Date.parse(parent.created_at)>=Date.parse(root.created_at),'REPLY_ANCESTRY_INVALID',403);
+      participants(child,this.account,this.authors.get(parent.author_id));
+      seen.add(parentId);child=parent;
+    }
     await this.catchUp(x,token);await this.rejectOptOut(target.author_id);
     return {author:target.author_id,target:target.id,root:root.id,key:args.idempotency_key};
   }
