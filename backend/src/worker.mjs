@@ -5,6 +5,8 @@ import { XConnector } from './x.mjs';
 import { READ_TOOLS, readTool } from './reads.mjs';
 import { createServiceVerifier } from './service.mjs';
 import { ServiceWrites } from './service-writes.mjs';
+import { QueueService, QueuePublishService } from './reply-queue-service.mjs';
+import { QUEUE_PATH, QUEUE_RESULT_MAX_BYTES, QUEUE_WIRE_MAX_BYTES, validateQueueArguments } from './reply-queue-policy.mjs';
 import { WRITE_PATH, REPLY_DEPLOYMENT_APPROVED, exactKeys } from './write-policy.mjs';
 import { validateConfiguredWriteArguments } from './write-validation.mjs';
 import { OwnerLogin, ownerErrorPage, ownerRedirect, hasOwnerSessionCookie } from './owner.mjs';
@@ -99,6 +101,7 @@ export function createWorker(dependencies = {}) {
   const logger = dependencies.logger ?? (line => console.warn(line));
   const verifyService = createServiceVerifier(clock);
   const verifyWriteService = createServiceVerifier(clock,{write:true});
+  const verifyQueueService = createServiceVerifier(clock,{queue:true});
   function transport(kind, env) {
     const injected = dependencies[kind === 'x' ? 'xFetch' : 'idpFetch'];
     if (injected) return injected;
@@ -191,6 +194,40 @@ export function createWorker(dependencies = {}) {
     }
   }
 
+  async function queueServiceMcp(request,env) {
+    assert(enabled(env.SERVICE_QUEUE_ENABLED),'SERVICE_QUEUE_DISABLED',503);
+    assert(request.method==='POST','METHOD_NOT_ALLOWED',405);
+    assert(request.headers.get('content-type')?.split(';')[0].toLowerCase()==='application/json','JSON_CONTENT_TYPE_REQUIRED',415);
+    const accept=(request.headers.get('accept')??'').split(',').map(v=>v.trim().split(';')[0]);
+    assert(accept.includes('application/json')&&accept.includes('text/event-stream'),'MCP_ACCEPT_REQUIRED',406);
+    const version=request.headers.get('mcp-protocol-version');
+    assert(version===null||VERSIONS.includes(version),'MCP_VERSION_UNSUPPORTED',400);
+    const bytes=await readBodyBytes(request),identity=await verifyQueueService(request,env,bytes);
+    let message;
+    try {
+      const raw=new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+      message=JSON.parse(raw);
+      assert(JSON.stringify(message)===raw,'INVALID_JSON');
+    } catch {throw new SafeError('INVALID_JSON',400);}
+    assert(exactKeys(message,['jsonrpc','id','method','params'])&&message.jsonrpc==='2.0'&&message.id===1
+      &&message.method==='tools/call','INVALID_JSON_RPC',400);
+    assert(exactKeys(message.params,['name','arguments'])&&message.params.name===identity.operation,
+      'QUEUE_OPERATION_MISMATCH',403);
+    const args=validateQueueArguments(identity.operation,message.params.arguments);
+    assert(args.request_id===identity.request_id,'QUEUE_PROOF_BINDING_MISMATCH',403);
+    // Every other queue operation is structurally transportless. Only this
+    // exact authenticated operation receives the normal publisher factory.
+    const store=new Store(env.DB,clock);
+    const queue=identity.operation==='x_reply_queue_publish'
+      ?new QueuePublishService(env,store,clock,publisherStore=>new XConnector(env,configuration(env),publisherStore,transport('x',env),clock))
+      :new QueueService(env,store,clock);
+    const value=await queue.execute(identity,args);
+    assert(new TextEncoder().encode(JSON.stringify(value)).length<=QUEUE_RESULT_MAX_BYTES,'QUEUE_RESPONSE_BOUND',503);
+    const envelope=rpc(1,result(value));
+    assert(new TextEncoder().encode(JSON.stringify(envelope)).length<=QUEUE_WIRE_MAX_BYTES,'QUEUE_WIRE_RESPONSE_BOUND',503);
+    return json(envelope);
+  }
+
   async function mcp(request, env, cfg) {
     if (request.method !== 'POST') return json({ error: 'METHOD_NOT_ALLOWED' }, 405, { allow: 'POST' });
     const accept = (request.headers.get('accept') ?? '').split(',').map(v => v.trim().split(';')[0]);
@@ -263,13 +300,15 @@ export function createWorker(dependencies = {}) {
           return json({ service: 'x-no-dm-mcp', version: '0.1.0' });
         if (url.pathname === '/service/mcp') return await serviceMcp(request,env);
         if (url.pathname === WRITE_PATH) return await writeServiceMcp(request,env);
+        if (url.pathname === QUEUE_PATH) return await queueServiceMcp(request,env);
         cfg = publicConfiguration(env);
         originCheck(request, env, cfg);
-        if (['/owner','/owner/login','/owner/callback','/owner/connect','/owner/logout','/owner/monitor-status','/owner/maintenance/ongoing-reconcile'].includes(url.pathname)) {
+        if (['/owner','/owner/login','/owner/callback','/owner/connect','/owner/logout','/owner/monitor-status','/owner/maintenance/ongoing-reconcile','/owner/maintenance/reply-queue-migrate'].includes(url.pathname)) {
           const owner=new OwnerLogin(env,configuration(env),transport('idp',env),req=>authenticate(req,env,'x:read'),clock);
           const get=['/owner','/owner/callback','/owner/monitor-status'].includes(url.pathname);
           assert(request.method===(get?'GET':'POST'),'METHOD_NOT_ALLOWED',405);
           if(url.pathname==='/owner/maintenance/ongoing-reconcile')return await owner.maintenance(request);
+          if(url.pathname==='/owner/maintenance/reply-queue-migrate')return await owner.maintenance(request,'queue-migrate');
           if(url.pathname==='/owner/monitor-status')return await owner.monitor(request);
           if(url.pathname==='/owner')return await owner.page(request);
           if(url.pathname==='/owner/login')return await owner.start(request);
@@ -319,7 +358,7 @@ export function createWorker(dependencies = {}) {
         const code = error instanceof SafeError ? error.code : 'INTERNAL_ERROR';
         if(new URL(request.url).pathname.startsWith('/owner'))
           return ownerErrorPage(status,new URL(request.url).pathname==='/owner/callback',tokenErrorReference(error) ?? code);
-        if (['/mcp','/service/mcp',WRITE_PATH].includes(new URL(request.url).pathname))
+        if (['/mcp','/service/mcp',WRITE_PATH,QUEUE_PATH].includes(new URL(request.url).pathname))
           return json(rpcError(null, code === 'INVALID_JSON' ? -32700 : status >= 500 ? -32603 : -32600, code), status, headers);
         return json({ error: code }, status, headers);
       }

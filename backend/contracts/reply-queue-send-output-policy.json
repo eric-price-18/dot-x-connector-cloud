@@ -1,0 +1,886 @@
+{
+  "version": 1,
+  "status": "public_candidate_default_off",
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "endpoint": "/service/queue/mcp",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$defs": {
+      "item": {
+        "type": "object",
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "author_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "root_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "blocked",
+              "approved",
+              "dispatching",
+              "sent",
+              "unknown",
+              "cancelled"
+            ]
+          },
+          "intent_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "intent_ref": {
+            "type": "string"
+          },
+          "receipt_ref": {
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "target_id",
+          "author_id",
+          "root_id",
+          "state",
+          "intent_key",
+          "intent_ref",
+          "receipt_ref",
+          "reason",
+          "due_at",
+          "source_created_at",
+          "expires_at",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "publish_binding": {
+        "type": "object",
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "intent_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "claim_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "target_id",
+          "intent_key",
+          "claim_token",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "sent_receipt": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "receipt_ref": {
+            "type": "string"
+          },
+          "state": {
+            "const": "sent"
+          },
+          "post_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "receipt_ref",
+          "state",
+          "post_id"
+        ],
+        "additionalProperties": false
+      },
+      "unknown_receipt": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "receipt_ref": {
+            "type": "string"
+          },
+          "state": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "receipt_ref",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "rejected_receipt": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "receipt_ref": {
+            "type": "string"
+          },
+          "state": {
+            "const": "rejected"
+          },
+          "dispatched": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "receipt_ref",
+          "state",
+          "dispatched",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "approve_completed": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "request_state": {
+            "const": "completed"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "result_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "const": 1
+          },
+          "account_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "item": {
+            "$ref": "#/$defs/item"
+          },
+          "approved_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "claim_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "claim_until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approval_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_binding": {
+            "$ref": "#/$defs/publish_binding"
+          },
+          "next_operation": {
+            "const": "x_reply_queue_publish"
+          },
+          "published": {
+            "const": false
+          }
+        },
+        "required": [
+          "request_id",
+          "request_state",
+          "replayed",
+          "result_at",
+          "version",
+          "account_id",
+          "item",
+          "approved_revision",
+          "claim_token",
+          "claim_until",
+          "approval_expires_at",
+          "publish_binding",
+          "next_operation",
+          "published"
+        ],
+        "additionalProperties": false
+      },
+      "cancel_completed": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "request_state": {
+            "const": "completed"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "result_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "const": 1
+          },
+          "account_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "item": {
+            "$ref": "#/$defs/item"
+          },
+          "outcome": {
+            "const": "cancelled"
+          },
+          "author_opt_out_recorded": {
+            "type": "boolean"
+          },
+          "published": {
+            "const": false
+          },
+          "next_operation": {
+            "const": "x_reply_queue_readiness"
+          }
+        },
+        "required": [
+          "request_id",
+          "request_state",
+          "replayed",
+          "result_at",
+          "version",
+          "account_id",
+          "item",
+          "outcome",
+          "author_opt_out_recorded",
+          "published",
+          "next_operation"
+        ],
+        "additionalProperties": false
+      },
+      "publish_completed": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "type": "null"
+              },
+              "outcome": {
+                "const": "deferred"
+              },
+              "published": {
+                "const": false
+              },
+              "next_operation": {
+                "const": "x_reply_queue_readiness"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "type": "null"
+              },
+              "outcome": {
+                "const": "cancelled"
+              },
+              "published": {
+                "const": false
+              },
+              "next_operation": {
+                "const": "x_reply_queue_readiness"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "$ref": "#/$defs/sent_receipt"
+              },
+              "outcome": {
+                "const": "sent"
+              },
+              "published": {
+                "const": true
+              },
+              "next_operation": {
+                "const": "x_reply_queue_readiness"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "$ref": "#/$defs/unknown_receipt"
+              },
+              "outcome": {
+                "const": "unknown"
+              },
+              "published": {
+                "const": false
+              },
+              "next_operation": {
+                "const": "x_reply_queue_reconcile"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "$ref": "#/$defs/rejected_receipt"
+              },
+              "outcome": {
+                "const": "cancelled"
+              },
+              "published": {
+                "const": false
+              },
+              "next_operation": {
+                "const": "x_reply_queue_readiness"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "request_state": {
+                "const": "completed"
+              },
+              "replayed": {
+                "type": "boolean"
+              },
+              "result_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "const": 1
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              "item": {
+                "$ref": "#/$defs/item"
+              },
+              "receipt": {
+                "$ref": "#/$defs/rejected_receipt"
+              },
+              "outcome": {
+                "const": "blocked"
+              },
+              "published": {
+                "const": false
+              },
+              "next_operation": {
+                "const": "x_reply_queue_readiness"
+              }
+            },
+            "required": [
+              "request_id",
+              "request_state",
+              "replayed",
+              "result_at",
+              "version",
+              "account_id",
+              "item",
+              "receipt",
+              "outcome",
+              "published",
+              "next_operation"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "review_indeterminate": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "const": 1
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "request_state": {
+            "const": "indeterminate"
+          },
+          "replayed": {
+            "const": true
+          },
+          "approval_required": {
+            "const": true
+          },
+          "send_authorized": {
+            "const": false
+          },
+          "recovery": {
+            "const": "refresh_readiness_and_wait_for_any_review_lease_to_expire"
+          }
+        },
+        "required": [
+          "version",
+          "request_id",
+          "request_state",
+          "replayed",
+          "approval_required",
+          "send_authorized",
+          "recovery"
+        ],
+        "additionalProperties": false
+      },
+      "publish_indeterminate": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "const": 1
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "request_state": {
+            "const": "indeterminate"
+          },
+          "replayed": {
+            "const": true
+          },
+          "approval_required": {
+            "const": true
+          },
+          "send_authorized": {
+            "const": false
+          },
+          "recovery": {
+            "const": "reconcile_original_intent_do_not_resend"
+          },
+          "intent_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "version",
+          "request_id",
+          "request_state",
+          "replayed",
+          "approval_required",
+          "send_authorized",
+          "recovery",
+          "intent_key"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/approve_completed"
+      },
+      {
+        "$ref": "#/$defs/cancel_completed"
+      },
+      {
+        "$ref": "#/$defs/publish_completed"
+      },
+      {
+        "$ref": "#/$defs/review_indeterminate"
+      },
+      {
+        "$ref": "#/$defs/publish_indeterminate"
+      }
+    ]
+  },
+  "operations": {
+    "x_reply_queue_approve": {
+      "oneOf": [
+        "approve_completed",
+        "review_indeterminate"
+      ]
+    },
+    "x_reply_queue_publish": {
+      "oneOf": [
+        "publish_completed",
+        "publish_indeterminate"
+      ]
+    },
+    "x_reply_queue_cancel": {
+      "oneOf": [
+        "cancel_completed",
+        "review_indeterminate"
+      ]
+    }
+  },
+  "success_envelope": {
+    "http_status": 200,
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result_fields": [
+      "content",
+      "structuredContent"
+    ],
+    "content": [
+      {
+        "type": "text",
+        "text": "JSON.stringify(the identical structuredContent value)"
+      }
+    ],
+    "structuredContent": "validate using operation schema above"
+  },
+  "error_envelope_schema": {
+    "type": "object",
+    "properties": {
+      "jsonrpc": {
+        "const": "2.0"
+      },
+      "id": {
+        "type": "null"
+      },
+      "error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "enum": [
+              -32700,
+              -32603,
+              -32600
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "jsonrpc",
+      "id",
+      "error"
+    ],
+    "additionalProperties": false
+  },
+  "error_rules": {
+    "http_status": "SafeError.status; unexpected exceptions are500",
+    "code": "INVALID_JSON -> -32700; status>=500 -> -32603; other failures -> -32600",
+    "message": "safe machine code; unexpected exception INTERNAL_ERROR",
+    "structuredContent": false,
+    "started_mutation": "Once request tombstone exists, even a subsequent HTTPerror does not authorize resending; exactrequest replay returns indeterminate if completion was not saved. Read item and reconcile original intent.",
+    "representative_codes": {
+      "400": [
+        "INVALID_QUEUE_ARGUMENTS",
+        "INVALID_JSON",
+        "INVALID_JSON_RPC"
+      ],
+      "403": [
+        "QUEUE_ACCOUNT_BINDING_MISMATCH",
+        "QUEUE_OWNER_BINDING_MISMATCH",
+        "QUEUE_OPERATION_MISMATCH",
+        "QUEUE_PROOF_BINDING_MISMATCH"
+      ],
+      "404": [
+        "QUEUE_ITEM_NOT_FOUND"
+      ],
+      "409": [
+        "QUEUE_INTENT_MISMATCH",
+        "QUEUE_INTENT_FROZEN",
+        "QUEUE_PLANNED_REPLY_EXPIRED",
+        "QUEUE_CLAIM_LOST",
+        "QUEUE_REVISION_CONFLICT",
+        "QUEUE_ITEM_NOT_MUTABLE",
+        "QUEUE_APPROVAL_EXPIRED",
+        "QUEUE_FRESH_MODEL_RECHECK_REQUIRED",
+        "QUEUE_COMMIT_UNCERTAIN_DO_NOT_PUBLISH",
+        "QUEUE_REQUEST_REPLAY_MISMATCH"
+      ],
+      "503": [
+        "SERVICE_QUEUE_DISABLED",
+        "QUEUE_RESPONSE_BOUND",
+        "QUEUE_REQUEST_ACK_UNCERTAIN",
+        "QUEUE_PREFLIGHT_UNCERTAIN"
+      ]
+    },
+    "code_list_exhaustive": false
+  },
+  "semantics": {
+    "result_at": "request-start snapshot timestamp, not a send receipt timestamp",
+    "replayed": "completed replay returns persisted original payload, with only replayed changed totrue",
+    "approved_revision": "next CAS expected_revision; use publish_binding verbatim with a fresh request_id",
+    "approval_expires_at": "exclusive min(itemexpires,reviewed_at+60,claim_until)",
+    "published_false": "does not prove no dispatch; unknown is ambiguous; consult trusted receipt",
+    "receipt_dispatched": "present only on rejectedreceipt; true is terminal dispatched rejection; false is proven no dispatch, but still no automatic retry/keyrotation",
+    "no_inline_readiness": true,
+    "safety_fields": "New completed approve/publish/cancel outputs intentionally omit approval_required/send_authorized. They are present on indeterminate outputs and unchanged originalfive operations. published:false is not a no-dispatch proof.",
+    "base_changes_since_eee": "No removed/renamed fields in original five responses. New three outputs use compact schemas here. The additive review-only operational-hold claim extension is specified in QUEUE_CLAIM_OUTPUT_EXTENSION.json; do not infer claim publication authority.",
+    "scheduler": "Call readiness separately after every completed/indeterminate action; never infer scheduling from replayed result_at or successful approval.",
+    "cancel": "explicit_stop records stored author opt-out only after validclaimCAS and cancels unfrozen same-authorplans; other reasons affectonlyitem.",
+    "limits": "Payload properties remain exact; transport sevenopsstructurallyabsent, publishonlyafterverifiedoperation."
+  }
+}

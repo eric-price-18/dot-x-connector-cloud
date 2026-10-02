@@ -63,6 +63,13 @@ boolean, differently capitalized or malformed value does not enable it.
 - **Write receipt lookup:** frontend `X_WRITE_STATUS_ENABLED`; backend
   `SERVICE_ENABLED`, `SERVICE_WRITE_ENABLED`, `X_WRITE_STATUS_ENABLED` and valid
   service/account binding. This is ledger-only and does not contact X.
+- **Queue candidate:** backend `SERVICE_ENABLED` and `SERVICE_QUEUE_ENABLED`,
+  with `SERVICE_WRITE_ENABLED` additionally required for ingest, claim and
+  reconcile, approve, publish and cancel. Queue proofs use the separate `/service/queue/mcp` audience and bind
+  operation, request ID and exact body. All queue gates ship off. A queue claim
+  does not authorize publishing or activate a scheduler. See the
+  [queue operating contract](reply-queue.md) for the paired frontend gates,
+  owner migration route and supported 15-minute scheduler requirements.
 
 Mutation gates are necessary but not sufficient: account binding, a write-capable
 X grant, finite immutable budget, operation/request limits, exact arguments and

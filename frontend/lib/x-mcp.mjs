@@ -1,3 +1,5 @@
+import { QUEUE_NAMES, QUEUE_INSTRUCTIONS, discoverQueueTools } from './queue-contract.mjs';
+import { createQueueAdapter } from './queue-service-adapter.mjs';
 import { readPublicKey, publicInfo, SERVICE_BRIDGE_ENABLED, SITE_ORIGIN } from './service-key.mjs';
 import { createServiceAdapter } from './service-adapter.mjs';
 import { WRITE_NAMES, discoverWriteTools, writeEnabled } from './write-contract.mjs';
@@ -32,14 +34,14 @@ export async function handleMcp(request, db, env = {}) {
  const {id=null,method,params={}}=message;
  const writeFrontend={original_posts_enabled:writeEnabled('x_create_original_post',env),reposts_enabled:writeEnabled('x_repost',env),replies_enabled:writeEnabled('x_reply',env),reply_mode:'own_threads_only',backend_write_readiness:'not_checked'};
  if(!(id===null||typeof id==='string'||typeof id==='number'))return error(null,-32600,'Invalid request',400);
- if(method==='initialize')return result(id,{protocolVersion:'2025-11-25',capabilities:{tools:{listChanged:false}},serverInfo:{name:'dot-x-connector',version:'0.1.0'},instructions:discoverWriteTools(env).length?'Private owner-only frontend. Read tools only read existing cache. Separately enabled write tools publish as @example_dot_bot. Preserve idempotency keys; unknown or pending outcomes must never trigger a resend. Any enabled reply tool is restricted to eligible direct replies to the account’s original root posts, respecting opt-outs and one automated reply per interaction.':'Private, read-only, owner-only frontend. Only status and existing cache reads are available. Never performs live X requests.'});
+ if(method==='initialize')return result(id,{protocolVersion:'2025-11-25',capabilities:{tools:{listChanged:false}},serverInfo:{name:'dot-x-connector',version:'0.1.0'},instructions:(discoverWriteTools(env).length?'Private owner-only frontend. Read tools only read existing cache. Separately enabled write tools publish as @example_dot_bot. Preserve idempotency keys; unknown or pending outcomes must never trigger a resend. Before any reply, freshly review the browser conversation rooted in the account’s original post, including nested follow-ups. Honor explicit stop requests and reply only when useful. The backend enforces local limits and duplicate prevention; browser context remains an owner assertion. No reply footer is required.':discoverQueueTools(env).length?'Private owner-only frontend. Existing cached reads and separately enabled queue operations are available.':'Private, read-only, owner-only frontend. Only status and existing cache reads are available. Never performs live X requests.')+(discoverQueueTools(env).length?' '+QUEUE_INSTRUCTIONS:'')});
  if(method==='notifications/initialized')return new Response(null,{status:202});
  if(method==='ping')return result(id,{});
- if(method==='tools/list')return result(id,{tools:[...tools,...discoverWriteTools(env)]});
+ if(method==='tools/list')return result(id,{tools:[...tools,...discoverWriteTools(env),...discoverQueueTools(env)]});
  if(method!=='tools/call')return error(id,-32601,'Method not found');
  const access=authorize(request.headers);
  if(access!==200)return error(id,-32001,access===401?'Authenticated owner identity required':'Owner access only',access);
- if(params && typeof params==='object' && !Array.isArray(params) && WRITE_NAMES.has(params.name)) {
+ if(params && typeof params==='object' && !Array.isArray(params) && (WRITE_NAMES.has(params.name)||QUEUE_NAMES.has(params.name))) {
   const origin=request.headers.get('origin');
   if((origin!==null&&origin!==SITE_ORIGIN)||request.headers.get('sec-fetch-site')==='cross-site')return error(id,-32001,'Cross-origin write denied',403);
   if(Object.keys(params).some(key=>!['name','arguments','_meta'].includes(key)))return error(id,-32602,'Invalid write request');
@@ -50,7 +52,8 @@ export async function handleMcp(request, db, env = {}) {
    const meta=params._meta;
    if(!meta||typeof meta!=='object'||Array.isArray(meta)||(Object.hasOwn(meta,'progressToken')&&typeof meta.progressToken!=='string'&&!(typeof meta.progressToken==='number'&&Number.isFinite(meta.progressToken))))return error(id,-32602,'Invalid write metadata');
   }
-  const upstream=await createWriteAdapter({db,env}).call(request.headers,params.name,params.arguments);
+  const adapter=QUEUE_NAMES.has(params.name)?createQueueAdapter({db,env}):createWriteAdapter({db,env});
+  const upstream=await adapter.call(request.headers,params.name,params.arguments);
   const value=upstream.value??{available:false,reason:upstream.reason,safe_to_retry:false};
   return result(id,{content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value,isError:!upstream.ok});
  }

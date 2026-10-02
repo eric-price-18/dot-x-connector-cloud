@@ -9,6 +9,7 @@ import {Miniflare} from 'miniflare';
 import {initializeFromOwnerClick,b64url} from '../../lib/service-key.mjs';
 const TEST_NOW=Date.parse('2000-01-02T02:00:00Z')/1000;
 const backend=fileURLToPath(new URL('../../../backend/',import.meta.url));
+const {migrationStatements}=await import(pathToFileURL(path.join(backend,'test/sql-fixtures.mjs')).href);
 const {seal}=await import(pathToFileURL(path.join(backend,'src/security.mjs')).href);
 
 test('actual frontend and backend workerd pipeline enforces own-thread replies, durable STOP opt-outs, one interaction, and uncertain-send suppression',async()=>{
@@ -37,7 +38,7 @@ test('actual frontend and backend workerd pipeline enforces own-thread replies, 
  if(payload.reply){assert.deepEqual(Object.keys(payload).sort(),['reply','text']);assert.deepEqual(Object.keys(payload.reply),['in_reply_to_tweet_id']);assert.equal(payload.reply.in_reply_to_tweet_id,'20001');assert.equal(payload.text,'A helpful narrow reply. Reply STOP to opt out.');}
  return Response.json({data:{id:(9000000000000000000n+BigInt(mutationCalls)).toString()}},{status:201});}}]});
  try{
-  const db=await mf.getD1Database('DB','backend');for(const file of (await readdir(path.join(backend,'migrations'))).filter(f=>f.endsWith('.sql')).sort()){const sql=await readFile(path.join(backend,'migrations',file),'utf8');for(const statement of sql.replace(/--[^\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run();}
+  const db=await mf.getD1Database('DB','backend');for(const file of (await readdir(path.join(backend,'migrations'))).filter(f=>f.endsWith('.sql')).sort()){const sql=await readFile(path.join(backend,'migrations',file),'utf8');for(const statement of migrationStatements(sql))await db.prepare(statement).run();}
   const now=TEST_NOW;
   // Match the backend's documented encrypted-token binding using the actual connector context.
   const {XConnector}=await import(pathToFileURL(path.join(backend,'src/x.mjs')).href);const {Store}=await import(pathToFileURL(path.join(backend,'src/storage.mjs')).href);const {configuration}=await import(pathToFileURL(path.join(backend,'src/security.mjs')).href);

@@ -10,6 +10,7 @@ import {Miniflare} from 'miniflare';
 import {initializeFromOwnerClick,b64url} from '../../lib/service-key.mjs';
 import {validateConfiguredWriteArguments,CANARY_DEADLINE} from '../../lib/write-contract.mjs';
 const backend=fileURLToPath(new URL('../../../backend/',import.meta.url));
+const {migrationStatements}=await import(pathToFileURL(path.join(backend,'test/sql-fixtures.mjs')).href);
 const {validateConfiguredWriteArguments:backendValidate}=await import(pathToFileURL(path.join(backend,'src/write-validation.mjs')).href);
 const {seal,configuration}=await import(pathToFileURL(path.join(backend,'src/security.mjs')).href);
 const {XConnector}=await import(pathToFileURL(path.join(backend,'src/x.mjs')).href);
@@ -39,7 +40,7 @@ async function runtime(t){
   const env={...base,...backConfig};
   mf=new Miniflare({...OFFLINE_RUNTIME_OPTIONS,d1Persist:directory,workers:[{name:'frontend',modules:true,script:front.outputFiles[0].text,compatibilityDate:'2026-05-15',bindings:{X_ORIGINAL_POSTS_ENABLED:'true',X_WRITE_STATUS_ENABLED:'true',...frontConfig},outboundService:async request=>{state.frontCalls++;assert.equal(request.url,base.PUBLIC_BASE_URL+'/service/write/mcp');assert.equal(request.headers.get('accept'),'application/json, text/event-stream');return (await mf.getWorker('backend')).fetch(request)}},{name:'backend',modules:true,script:back.outputFiles[0].text,compatibilityDate:'2026-05-15',bindings:env,d1Databases:{DB:'canary-interop-database'},outboundService:async request=>{state.xCalls++;assert.equal(request.url,'https://api.x.com/2/tweets');assert.equal(request.method,'POST');assert.deepEqual(await request.json(),{text:INPUT.text});if(state.ambiguous)return new Response('Mock ambiguous X result',{status:503});return Response.json({data:{id:'9007199254740993'}},{status:201})}}]});
   if(!initialized){
-   const db=await mf.getD1Database('DB','backend');for(const file of(await readdir(path.join(backend,'migrations'))).filter(f=>f.endsWith('.sql')).sort()){const sql=await readFile(path.join(backend,'migrations',file),'utf8');for(const statement of sql.replace(/--[^\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run();}
+   const db=await mf.getD1Database('DB','backend');for(const file of(await readdir(path.join(backend,'migrations'))).filter(f=>f.endsWith('.sql')).sort()){const sql=await readFile(path.join(backend,'migrations',file),'utf8');for(const statement of migrationStatements(sql))await db.prepare(statement).run();}
    const store=new Store(db,()=>NOW);const x=new XConnector(env,configuration(env),store,()=>{throw Error('No egress during seed')},()=>NOW);
    await store.saveAccount(env.MCP_ISSUER,env.MCP_ALLOWED_SUBJECT,'4242',await seal(env.TOKEN_ENCRYPTION_KEY,{access_token:'mock-only-access',refresh_token:'mock-only-refresh',scopes:['tweet.read','users.read','offline.access','tweet.write']},x.context()),NOW+7200);initialized=true;
   }

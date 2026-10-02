@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { CREDIT_RUN_ID, CREDIT_RUN_DEADLINE, creditModuleSource } from './credit-fixture.mjs';
 import { RUNTIME_NOW, CLOCK_CONTROL_PATH } from './clock-fixture.mjs';
+import { migrationStatements } from '../test/sql-fixtures.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 import assert from 'node:assert/strict';
 
@@ -22,7 +23,8 @@ export function runtimeModules(testFaults={}) {
       ? [{type:'ESModule',path:resolve(root,'runtime-test/canary-fault-worker.mjs')}] : []),
     ...['clock-worker','clock-fixture'].map(name=>({type:'ESModule',path:resolve(root,`runtime-test/${name}.mjs`)})),
     ...['worker','identity','jwt','owner','x','security','storage','reads','service','service-writes',
-      'write-policy','write-validation','twitter-text-vendor','credit-policy','reply-guard','canary-mention','ongoing','ongoing-diagnostics','maintenance','pricing']
+      'write-policy','write-validation','twitter-text-vendor','credit-policy','reply-guard','canary-mention','ongoing','ongoing-diagnostics','maintenance','pricing',
+      'reply-queue','reply-queue-policy','reply-queue-preflight','reply-queue-publisher','reply-queue-service','reply-queue-wake','reply-queue-processor','reply-queue-store','queue-migrations','queue-migration-data']
       .map(name=>({type:'ESModule',path:resolve(root,`src/${name}.mjs`),
         ...(name==='credit-policy'&&!testFaults.productionCreditPolicy?{contents:creditModuleSource}:{})}))
   ];
@@ -116,7 +118,7 @@ export async function runtime(t, overrides = {}, testFaults = {}) {
   // is unsuitable for this formatted migration.
   for(const file of (await readdir(resolve(root,'migrations'))).filter(v=>v.endsWith('.sql')).sort()) {
     const sql=await readFile(resolve(root,`migrations/${file}`),'utf8');
-    for (const part of sql.split(';').map(v => v.trim()).filter(Boolean)) await db.prepare(part).run();
+    for (const part of migrationStatements(sql)) await db.prepare(part).run();
   }
   async function api(path, { method = 'GET', data, raw, auth = false, headers = {} } = {}) {
     return mf.dispatchFetch(`${base}${path}`, { method, redirect: 'manual', headers: {

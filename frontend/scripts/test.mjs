@@ -24,6 +24,6 @@ try {
   for(const name of ['src','test','migrations','package.json'])await cp(path.join(backend,name),path.join(temporary,'backend',name),{recursive:true});
   files.push(...(await readdir(path.join(fixture,'tests/interop'))).filter(n=>n.endsWith('.test.mjs')).map(n=>'tests/interop/'+n));
  }
- const run=spawnSync(process.execPath,['--import','./tests/offline-runtime.mjs','--test',...files],{cwd:fixture,stdio:'inherit',env:{...process.env,CLOUDFLARE_CF_FETCH_ENABLED:'false',WRANGLER_SEND_METRICS:'false'}});
+ const run=spawnSync(process.execPath,['--import','./tests/offline-runtime.mjs','--test',...files],{cwd:fixture,stdio:'inherit',env:{...process.env,BACKEND_CANDIDATE_PATH:path.join(temporary,'backend'),CLOUDFLARE_CF_FETCH_ENABLED:'false',WRANGLER_SEND_METRICS:'false'}});
  process.exitCode=run.status??1;
 } finally {await rm(temporary,{recursive:true,force:true});}

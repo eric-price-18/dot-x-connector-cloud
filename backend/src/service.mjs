@@ -1,6 +1,7 @@
 import { assert, b64url, enabled, fromB64url, SafeError } from './security.mjs';
 import { isPostId } from './write-validation.mjs';
 import { WRITE_AUDIENCE, WRITE_PATH, WRITE_NAMES, UUID_V4, writeScope } from './write-policy.mjs';
+import { QUEUE_AUDIENCE, QUEUE_PATH, queueScope, queueMutates } from './reply-queue-policy.mjs';
 
 export const SERVICE = Object.freeze({
   issuer: 'https://frontend.example.invalid',
@@ -26,8 +27,10 @@ function decode(part) {
   return value;
 }
 
-export function createServiceVerifier(clock, { write = false } = {}) {
-  const profile = write ? {...SERVICE, audience:WRITE_AUDIENCE, path:WRITE_PATH} : SERVICE;
+export function createServiceVerifier(clock, { write = false, queue = false } = {}) {
+  assert(!(write&&queue),'INVALID_SERVICE_PROFILE',503);
+  const profile = queue ? {...SERVICE,audience:QUEUE_AUDIENCE,path:QUEUE_PATH}
+    : write ? {...SERVICE, audience:WRITE_AUDIENCE, path:WRITE_PATH} : SERVICE;
   let cached;
   async function publicKey(raw) {
     assert(typeof raw === 'string' && raw.length > 0 && raw.length <= 2048, 'SERVICE_KEY_NOT_CONFIGURED', 503);
@@ -59,6 +62,7 @@ export function createServiceVerifier(clock, { write = false } = {}) {
   return async function verify(request, env, bodyBytes) {
     assert(enabled(env.SERVICE_ENABLED), 'SERVICE_DISABLED', 503);
     if(write) assert(enabled(env.SERVICE_WRITE_ENABLED), 'SERVICE_WRITE_DISABLED', 503);
+    if(queue) assert(enabled(env.SERVICE_QUEUE_ENABLED), 'SERVICE_QUEUE_DISABLED', 503);
     assert(request.method === 'POST', 'METHOD_NOT_ALLOWED', 405);
     assert(request.url === profile.audience && env.PUBLIC_BASE_URL === new URL(profile.audience).origin,
       'SERVICE_TARGET_INVALID', 403);
@@ -71,6 +75,13 @@ export function createServiceVerifier(clock, { write = false } = {}) {
         || authorization.length>4096)throw invalid();
       const parts=authorization.slice(7).split('.'), header=decode(parts[0]), claims=decode(parts[1]);
       const claimNames=['iss','sub','aud','scope','iat','exp','jti','method','path','body_sha256'];
+      if(queue) {
+        claimNames.push('operation','request_id');
+        if(!queueScope(claims.operation)||claims.scope!==queueScope(claims.operation)
+          ||claims.exp-claims.iat!==45||typeof claims.request_id!=='string'||!UUID_V4.test(claims.request_id)
+          ||claims.jti!==claims.request_id)throw invalid();
+        if(queueMutates(claims.operation)&&!enabled(env.SERVICE_WRITE_ENABLED))throw invalid();
+      }
       if(write) {
         claimNames.push('operation','idempotency_key');
         if(claims.operation==='x_reply') claimNames.push('in_reply_to_post_id');
@@ -81,7 +92,7 @@ export function createServiceVerifier(clock, { write = false } = {}) {
       if(!exactKeys(header,['alg','typ','kid']) || header.alg!=='ES256' || header.typ!=='JWT' || header.kid!==kid
         || !exactKeys(claims,claimNames))throw invalid();
       if(claims.iss!==SERVICE.issuer || claims.sub!==SERVICE.subject || claims.aud!==profile.audience
-        || (!write && claims.scope!=='x:read') || claims.method!=='POST' || claims.path!==profile.path
+        || (!write && !queue && claims.scope!=='x:read') || claims.method!=='POST' || claims.path!==profile.path
         || !Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp)
         || claims.iat<0 || claims.exp<=claims.iat || claims.exp-claims.iat>SERVICE.maxTTL
         || claims.iat>clock()+SERVICE.clockSkew || claims.exp<=clock()
@@ -91,8 +102,11 @@ export function createServiceVerifier(clock, { write = false } = {}) {
       if(signature.length!==64 || !await crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},key,signature,
         encoder.encode(`${parts[0]}.${parts[1]}`)))throw invalid();
       if(claims.body_sha256!==b64url(await crypto.subtle.digest('SHA-256',bodyBytes)))throw invalid();
-      // No one-use/replay claim: exact read requests can be replayed until expiry.
+      // Queue mutation replays are fenced by its durable request ledger after
+      // verification. Ordinary cached read requests can replay until expiry.
       if(claims.exp<=clock())throw invalid();
+      if(queue)return {kind:'service_queue',subject:SERVICE.subject,operation:claims.operation,
+        request_id:claims.request_id,body_sha256:claims.body_sha256};
       return {kind:write?'service_write':'service',subject:SERVICE.subject,...(write?{operation:claims.operation,idempotency_key:claims.idempotency_key,
         ...(claims.operation==='x_reply'?{in_reply_to_post_id:claims.in_reply_to_post_id}:{})}:{})};
     }catch{throw invalid();}

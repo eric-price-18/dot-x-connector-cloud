@@ -27,6 +27,7 @@
     "MCP_USERINFO_URL": "https://identity.example.invalid/userinfo",
     "SERVICE_ENABLED": "false",
     "SERVICE_WRITE_ENABLED": "false",
+    "SERVICE_QUEUE_ENABLED": "false",
     "OWNER_LOGIN_ENABLED": "false",
     "LIVE_X_ENABLED": "false",
     "LIVE_IDP_ENABLED": "false",

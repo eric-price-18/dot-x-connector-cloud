@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "status": "public_candidate_default_off",
+  "operation": "x_reply_queue_claim",
+  "input_changed": false,
+  "added_required_fields_on_nonnull_claim": {
+    "review_only": {
+      "type": "boolean"
+    },
+    "eligibility": {
+      "type": "object",
+      "properties": {
+        "eligible_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "eligible_at",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "semantics": {
+    "eligible_claim": {
+      "review_only": false,
+      "top_level_reason": "model_review_required"
+    },
+    "operational_hold_claim": {
+      "review_only": true,
+      "top_level_reason": "operational_hold_review_only"
+    },
+    "priority": "Prefer currently eligible work across the complete same-generation scan. Each page scans at most two candidates; the completed scan may recheck one earlier held candidate. Incomplete pages continue scanning.",
+    "authority": "Both claim forms retain approval_required:true and send_authorized:false. Fresh model approval and final publication eligibility remain mandatory.",
+    "recoverable_holds": "Only fixed server-allowlisted operational reasons on unexpired unfrozen mutable items. Model pauses, owner pauses and every committed intent are excluded.",
+    "wake": "No automatic next_wake_at while an indefinite operational hold remains. Restoration permits ordinary readiness/claim re-evaluation without changing the intent key.",
+    "cancellation": "A valid review-only claim can cancel its exact revision while operational publication remains held.",
+    "other_response_changes": "No removed or renamed original fields. Claim null responses have no added claim object. Approve/publish/cancel shapes unchanged."
+  }
+}

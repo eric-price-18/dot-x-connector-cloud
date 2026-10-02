@@ -11,20 +11,20 @@ Complete these inputs together:
 - Check the provider dashboard for the current calendar-month billing cycle, its usage and current prepaid balance. Confirm automatic recharge is off and no other application/account shares that allowance. Save the supporting records privately and compute their SHA-256 digest as `evidence_id`. These are operator attestations; the validator cannot independently verify the dashboard.
 - This implementation supports confirmed calendar-month provider cycles only. Its conservative interval starts no earlier than the month's first day at 12:00 UTC and ends no later than the last day at 10:00 UTC, covering uncertain provider timezones from UTC−12 to UTC+14. Use a narrower interval if required. If the provider uses another cycle, stop for an implementation review rather than inventing a calendar month.
 
-The **public local spending calendar is UTC**. The private operational deployment used America/New_York; do not copy that configuration or assume its midnight/DST behavior applies here. Changing the public calendar requires a reviewed ledger transition, not an environment-variable tweak.
+The **public local spending calendar is UTC**. Do not substitute a deployment-specific timezone or exemption. Changing the public calendar requires a reviewed ledger transition, not an environment-variable tweak.
 
 ## One-pass operator runbook
 
 Run commands from `backend/` in your private deployment checkout, with its pinned dependencies installed. Set `CONNECTOR_CONFIG` to your private Wrangler configuration path and `CONNECTOR_DB` to your configured D1 database name. Keep evidence files outside this source checkout. These commands are for your explicitly approved deployment, not commands this repository runs automatically.
 
-1. Shut down activity in that private configuration: set `LIVE_X_ENABLED`, `READ_POLLING_ENABLED`, `POST_ENABLED`, `REPLY_ENABLED`, `SERVICE_WRITE_ENABLED`, `X_ORIGINAL_POSTS_ENABLED`, `X_REPOSTS_ENABLED`, `X_OWN_THREAD_REPLIES_ENABLED`, and `X_ONGOING_OPERATIONS_ENABLED` to `"false"`; retain an empty cron list. Keep the existing owner sign-in/identity-provider settings available. Temporarily set only `ONGOING_MAINTENANCE_ENABLED` to `"true"`. Deploy this shutdown configuration and wait for prior requests to finish. Do not erase pending/unknown receipts.
+1. Shut down activity in that private configuration: set `LIVE_X_ENABLED`, `READ_POLLING_ENABLED`, `POST_ENABLED`, `REPLY_ENABLED`, `SERVICE_WRITE_ENABLED`, `SERVICE_QUEUE_ENABLED`, `X_ORIGINAL_POSTS_ENABLED`, `X_REPOSTS_ENABLED`, `X_OWN_THREAD_REPLIES_ENABLED`, and `X_ONGOING_OPERATIONS_ENABLED` to `"false"`; retain an empty cron list. Keep the existing owner sign-in/identity-provider settings available. Temporarily set only `ONGOING_MAINTENANCE_ENABLED` to `"true"`. Deploy this shutdown configuration and wait for prior requests to finish. Do not erase pending/unknown receipts.
 
    ```sh
    npm exec -- wrangler deploy --config "$CONNECTOR_CONFIG"
    npm exec -- wrangler d1 migrations apply "$CONNECTOR_DB" --remote --config "$CONNECTOR_CONFIG"
    ```
 
-   Apply every shipped migration, including `0006_ongoing.sql`. The handler checks that the required schema matches the shipped definitions. A failed or incompatible migration is a stop, not permission to replace tables.
+   Apply the six baseline migrations through `0006_ongoing.sql`. Configure the D1 binding with `"migrations_dir":"migrations"` and `"migrations_pattern":"migrations/000[1-6]*.sql"` so the ordinary migration command excludes the queue files. The separate [fixed owner queue route](reply-queue.md#schema-rollback-and-release-boundary) applies 0008–0011 atomically with its own hash journal. [Cloudflare documents the supported migration pattern setting](https://developers.cloudflare.com/d1/reference/migrations/). The handler checks that the required schema matches the shipped definitions. A failed or incompatible migration is a stop, not permission to replace tables.
 
 2. Create a private JSON evidence file with exactly these fields. Money is integer micro-USD: $1 is `1000000`. Times are integer Unix seconds. `observed_at` must describe a dashboard observation within the preceding hour; refreshing this timestamp without rechecking the evidence is invalid. The account ID must exactly match the connected backend account.
 

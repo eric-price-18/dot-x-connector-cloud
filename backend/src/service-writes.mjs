@@ -98,6 +98,9 @@ export class ServiceWrites {
         return receipt(name,key,'rejected','idempotency_binding_conflict');
       return this.fromRow(row,key);
     }
+    // Internal queue adapter records exclusive ownership of this newly inserted
+    // intent. A returned historical receipt is never proof of no dispatch.
+    await this.onIntentCreated?.(key);
     let x,keyHash,ownedSend=false,prepaidId,prepaidAmount,interaction;
     const replyGuard=isReply?new ReplyGuard(this.env,this.store,this.clock):null;
     try {
@@ -178,8 +181,10 @@ export class ServiceWrites {
     if(ongoing(this.env)&&name==='x_reply') {
       const slot=await this.store.first(`UPDATE ongoing_operations SET created_at=? WHERE intent=? AND kind='reply'
         AND NOT EXISTS(SELECT 1 FROM ongoing_operations AS other WHERE other.account_id=ongoing_operations.account_id
-          AND other.kind='reply' AND other.intent<>ongoing_operations.intent AND other.created_at>?) RETURNING intent`,
-        this.clock(),args.idempotency_key,this.clock()-900);
+          AND other.kind='reply' AND other.intent<>ongoing_operations.intent AND other.created_at>?)
+        AND NOT EXISTS(SELECT 1 FROM service_writes WHERE account_id=ongoing_operations.account_id
+          AND operation='x_reply' AND state='succeeded' AND idempotency_key<>? AND updated_at>?) RETURNING intent`,
+        this.clock(),args.idempotency_key,this.clock()-900,args.idempotency_key,this.clock()-900);
       assert(slot,'ONGOING_DISPATCH_COOLDOWN',429);
       this.store.checkCreditWindow(this.env);
     }

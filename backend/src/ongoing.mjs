@@ -18,6 +18,10 @@ export function dayStart(now) {
   while(hi-lo>1) {const mid=Math.floor((lo+hi)/2);if(periods(mid).day===day)hi=mid;else lo=mid;}
   return hi;
 }
+export function monthEnd(now) {
+  const date=new Date(now*1000);
+  return Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,1)/1000;
+}
 // Prior reservations remain liabilities, never a renewed credit grant. Reconciliation is
 // owner-provided, evidence-bound and immutable; absent/changed evidence blocks.
 export async function allowance(store,env) {

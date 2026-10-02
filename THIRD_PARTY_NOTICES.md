@@ -15,7 +15,7 @@ Keep the generator script, pinned dependency versions, bundle header and a descr
 
 ## Installed dependencies
 
-The frontend installs `twitter-text` from npm rather than copying its source. Other runtime/development packages retain their own licenses in the installed packages. Do not commit `node_modules`.
+The frontend installs `twitter-text` 3.1.0 (Apache-2.0) and `zod` 3.25.76 (MIT) from npm rather than copying their source. Other runtime/development packages retain their own licenses in the installed packages. Do not commit `node_modules`.
 
 ## Platform starter
 

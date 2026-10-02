@@ -1,3 +1,4 @@
+import { migrateReplyQueue, queueMaintenanceGate, queueMigrationStatus } from './queue-migrations.mjs';
 import { maintenanceGate, reconciliationManifest, reconcileOngoing } from './maintenance.mjs';
 import { ownerDiagnostics } from './ongoing-diagnostics.mjs';
 import { assert, digest, enabled, httpsUrl, open, randomValue, readBody, responseJson, seal } from './security.mjs';
@@ -170,12 +171,15 @@ export class OwnerLogin {
     if(validate)identity=await this.authenticate(new Request(`${this.cfg.base}/owner`,{headers:{authorization:`Bearer ${payload.token}`}}));
     return {hash,csrf:payload.csrf,identity};
   }
-  async maintenance(request) {
+  async maintenance(request,kind) {
     maintenanceGate(this.env);
     formOrigin(request,this.cfg);
     const session=await this.session(request);
     await csrfForm(request,session.csrf);
-    const result=await reconcileOngoing(this.store,this.env);
+    const account=await this.store.account();
+    assert(account&&account.issuer===this.cfg.issuer&&account.subject===this.env.MCP_ALLOWED_SUBJECT&&account.x_user_id===this.env.X_EXPECTED_USER_ID,'ACCOUNT_NOT_LINKED_OR_BINDING_MISMATCH',403);
+    const result=kind==='queue-migrate'?await migrateReplyQueue(this.store,this.env):await reconcileOngoing(this.store,this.env);
+    if(kind==='queue-migrate'&&request.headers.get('accept')?.includes('text/html'))return document('<p>Queue migration completed. Activity remains disabled.</p><p><a href="/owner">Return to owner setup</a></p>',new URL(this.cfg.issuer).origin);
     if(request.headers.get('accept')?.includes('text/html'))return document(
       '<p>Spending reconciliation completed. Posting, replies and polling remain disabled.</p><p><a href="/owner">Return to owner setup</a></p>',new URL(this.cfg.issuer).origin);
     return Response.json(result,{headers:safeHeaders});
@@ -184,7 +188,13 @@ export class OwnerLogin {
     if(!enabled(this.env.ONGOING_MAINTENANCE_ENABLED))return '';
     let ready=Boolean(linked);
     try {maintenanceGate(this.env);reconciliationManifest(this.env,this.clock());}catch {ready=false;}
-    return `<section><h2>Spending reconciliation</h2>
+    let queueReady=Boolean(linked),queue={complete:false};
+    try{queueMaintenanceGate(this.env);queue=await queueMigrationStatus(this.store);}catch{queueReady=false;}
+    queueReady=queueReady&&!queue.complete;
+    return `<section><h2>Reply queue setup</h2><p>The fixed migration preserves queue records and enables no activity.</p>
+      <p>Queue migration: ${queue.complete?'complete':queueReady?'ready':'deployment review or activity shutdown required'}.</p>
+      <form method="post" action="/owner/maintenance/reply-queue-migrate"><input type="hidden" name="csrf" value="${session.csrf}"><button${queueReady?'':' disabled'}>Apply reviewed queue migration</button></form></section>
+      <section><h2>Spending reconciliation</h2>
       <p>Apply the administrator-installed billing evidence after D1 migrations. This preserves all prior reservations and enables no activity.</p>
       ${ready?'':'<p>Waiting for a linked account, valid billing evidence and activity shutdown.</p>'}
       <form method="post" action="/owner/maintenance/ongoing-reconcile"><input type="hidden" name="csrf" value="${session.csrf}"><button${ready?'':' disabled'}>Apply spending reconciliation</button></form></section>`;
