@@ -121,11 +121,11 @@ test('workerd credit: original, repost, reply, cached reads and refresh share on
   assert.equal((await h.call('x_create_original_post', post())).receipt.state, 'succeeded');
   assert.equal((await h.call('x_repost', { post_id: '900', idempotency_key: key(2) })).receipt.state, 'succeeded');
   assert.equal((await h.call('x_reply', replyArgs(3))).receipt.state, 'succeeded');
-  assert.equal(await used(h), 795_000);
+  assert.equal(await used(h), 655_000);
   await h.db.prepare('UPDATE accounts SET expires_at=0').run();
   await h.scheduled();
-  assert.equal(await used(h), 865_000);
-  assert.deepEqual(charges, [200_000, 400_000, 460_000, 520_000, 595_000, 795_000, 805_000, 815_000, 840_000, 865_000]);
+  assert.equal(await used(h), 725_000);
+  assert.deepEqual(charges, [200_000, 400_000, 415_000, 430_000, 455_000, 655_000, 665_000, 675_000, 700_000, 725_000]);
   assert.equal(h.xCalls().length, 10);
   const before = await ledger(h);
   await h.restart();

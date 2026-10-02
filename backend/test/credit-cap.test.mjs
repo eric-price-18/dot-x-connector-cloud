@@ -152,15 +152,15 @@ test('originals, reposts, replies, reads, refresh and user verification consume 
   assert.equal((await h.call('x_repost', { post_id: '900', idempotency_key: key(2) })).receipt.state, 'succeeded');
   assert.equal(used(h), 400_000);
   assert.equal((await h.call('x_reply', replyArgs(3))).receipt.state, 'succeeded');
-  assert.equal(used(h), 795_000); // Two $0.06 lookups, $0.075 catch-up, $0.20 mutation.
+  assert.equal(used(h), 655_000); // Two $0.015 lookups, $0.025 catch-up, $0.20 mutation.
   await h.x.poll();
-  assert.equal(used(h), 845_000);
+  assert.equal(used(h), 705_000);
   await h.x.verifyUser('mock-token');
-  assert.equal(used(h), 855_000);
+  assert.equal(used(h), 715_000);
   h.state.xScopes = writeScopes.join(' ');
   await h.store.run('UPDATE accounts SET expires_at=0');
   await h.x.tokens();
-  assert.equal(used(h), 875_000);
+  assert.equal(used(h), 735_000);
   assert.equal(ledger(h).length, 1);
   assert.equal(h.state.xCalls.length, 11);
 });
@@ -275,7 +275,7 @@ for (const route of ['read', 'service original', 'service repost', 'service repl
     assert(expired);
     assert.equal(h.sends().length, 0);
     assert.equal(h.state.xCalls.length, route === 'service reply' ? 3 : 0);
-    assert.equal(used(h), route === 'read' ? 10_000 : route === 'service reply' ? 395_000 : 200_000);
+    assert.equal(used(h), route === 'read' ? 10_000 : route === 'service reply' ? 255_000 : 200_000);
     const restarted = new XConnector(h.env, h.cfg, new Store(h.db, h.clock), h.xFetch, h.clock);
     await rejectsCode(restarted.verifyUser('mock'), AUTH);
   });

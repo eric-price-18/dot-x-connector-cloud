@@ -30,7 +30,7 @@ async function setup(t) {
 test('workerd own-thread: exact reply, permanent target uniqueness and credit reserve survive restart',async t=>{
  const h=await setup(t);const r=await h.call();assert.equal(r.receipt.state,'succeeded',JSON.stringify(r.body));
  assert.deepEqual(JSON.parse(h.sends()[0].body),{text:replyArgs().text,reply:{in_reply_to_tweet_id:'1002'}});
- assert.equal((await h.db.prepare('SELECT used_micro_usd FROM x_credit_budgets').first()).used_micro_usd,395000);
+ assert.equal((await h.db.prepare('SELECT used_micro_usd FROM x_credit_budgets').first()).used_micro_usd,255000);
  await h.restart();assert.deepEqual((await h.call()).receipt,r.receipt);
  const before=h.xCalls().length;assert.equal((await h.call(replyArgs(2,'Another reply. Reply STOP to opt out.'))).receipt.code,'reply_interaction_already_claimed');
  assert.equal(h.xCalls().length,before);assert.equal(h.sends().length,1);

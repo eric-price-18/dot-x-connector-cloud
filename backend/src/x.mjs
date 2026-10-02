@@ -23,17 +23,20 @@ export class XConnector {
   async request(path, { method = 'GET', token, body, records = 0, write = false, oauth = false, grantVersion, creditMicroUsd } = {}) {
     await this.store.reserveX(this.env, records, write, creditMicroUsd);
     const creditAttempt=this.store.creditAttempt;
-    if(write) {
-      const current=await this.store.account();this.bind(current);
-      assert(Number.isSafeInteger(grantVersion) && current.version===grantVersion && current.refresh_status==='idle',
-        'X_GRANT_SUPERSEDED',409);
-    }
-    this.store.checkCreditWindow(this.env);
+    try {
+      if(write) {
+        const current=await this.store.account();this.bind(current);
+        assert(Number.isSafeInteger(grantVersion) && current.version===grantVersion && current.refresh_status==='idle',
+          'X_GRANT_SUPERSEDED',409);
+      }
+      this.store.checkCreditWindow(this.env);
+    } catch(error) {if(ongoing(this.env))await this.store.releaseUnattemptedCredit(creditAttempt);throw error;}
     const headers = { accept: 'application/json', authorization: oauth
       ? basicAuth(this.env.X_CLIENT_ID, this.env.X_CLIENT_SECRET) : `Bearer ${token}` };
     if (body) headers['content-type'] = oauth ? 'application/x-www-form-urlencoded' : 'application/json';
     let response;
     try {
+      this.store.markCreditDispatched(creditAttempt);
       response = await this.xFetch(`https://api.x.com${path}`, {
         method, headers, body: body ? (oauth ? body.toString() : JSON.stringify(body)) : undefined,
         // Never follow redirects with credentials; non-2xx is rejected below.

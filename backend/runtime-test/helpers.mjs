@@ -22,7 +22,7 @@ export function runtimeModules(testFaults={}) {
       ? [{type:'ESModule',path:resolve(root,'runtime-test/canary-fault-worker.mjs')}] : []),
     ...['clock-worker','clock-fixture'].map(name=>({type:'ESModule',path:resolve(root,`runtime-test/${name}.mjs`)})),
     ...['worker','identity','jwt','owner','x','security','storage','reads','service','service-writes',
-      'write-policy','write-validation','twitter-text-vendor','credit-policy','reply-guard','canary-mention','ongoing','ongoing-diagnostics','maintenance']
+      'write-policy','write-validation','twitter-text-vendor','credit-policy','reply-guard','canary-mention','ongoing','ongoing-diagnostics','maintenance','pricing']
       .map(name=>({type:'ESModule',path:resolve(root,`src/${name}.mjs`),
         ...(name==='credit-policy'&&!testFaults.productionCreditPolicy?{contents:creditModuleSource}:{})}))
   ];

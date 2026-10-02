@@ -63,7 +63,7 @@ Run commands from `backend/` in your private deployment checkout, with its pinne
    npm exec -- wrangler deploy --config "$CONNECTOR_CONFIG"
    ```
 
-6. After the separate policy, consent and operation approvals in [setup](setup.md), a reviewed private configuration may opt into `X_ONGOING_OPERATIONS_ENABLED` and only the desired operation gates. Review `/owner/monitor-status` while signed in: it reports local reservations, never authoritative provider billing. Keep polling and cron off when human browser notification checks supply candidate IDs. Reply execution still requires fresh API ownership/eligibility/STOP checks and the full $0.73 reservation; five replies is a ceiling, not a guaranteed throughput.
+6. After the separate policy, consent and operation approvals in [setup](setup.md), a reviewed private configuration may opt into `X_ONGOING_OPERATIONS_ENABLED` and only the desired operation gates. Review `/owner/monitor-status` while signed in: it reports local reservations, never authoritative provider billing. Keep polling and cron off when human browser notification checks supply candidate IDs. Reply execution still requires fresh API ownership/eligibility/STOP checks and the full $0.175 plain-text or $0.36 URL/ambiguous reservation; five replies is a ceiling, not a guaranteed throughput.
 
 ## Subsequent months and conservative stops
 

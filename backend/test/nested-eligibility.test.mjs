@@ -16,10 +16,10 @@ function fixture(depth) {
  return {posts,target,root,calls,optouts,guard,verify:()=>guard.verify(x,'synthetic-token',{in_reply_to_post_id:target.id,idempotency_key:'synthetic-key'}),scans:()=>scans};
 }
 test('bounded ancestry accepts depths zero through four with fresh lookups and correct root',async()=>{
- assert.equal(MAX_REPLY_ANCESTORS,4);assert.equal(REPLY_PREFLIGHT_MICROUSD,730000);
+ assert.equal(MAX_REPLY_ANCESTORS,4);assert.equal(REPLY_PREFLIGHT_MICROUSD,360000);
  for(let depth=0;depth<=4;depth++){
   const f=fixture(depth),r=await f.verify();assert.equal(r.root,'100');assert.equal(f.calls.length,depth+2);assert.equal(f.scans(),1);
-  assert(f.calls.every(c=>c.options.creditMicroUsd===60000));
+  assert(f.calls.every(c=>c.options.creditMicroUsd===15000));
  }
  const f=fixture(5);await assert.rejects(f.verify(),e=>e.code==='REPLY_ANCESTRY_LIMIT');assert.equal(f.calls.length,6);assert.equal(f.scans(),0);
 });

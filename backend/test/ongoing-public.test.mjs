@@ -39,13 +39,13 @@ test('unknown earlier-cycle attempts retain budget and legacy changes block',asy
  const f=fixture();f.db.exec("INSERT INTO ongoing_spend(account_id,day,month,amount,unresolved_micro_usd,kind,created_at) VALUES('42','2034-12-01','2034-12',5000000,5000000,'api',1)");await assert.rejects(reserveOngoing(f.store,f.env,1));
  const g=fixture();g.db.prepare('INSERT INTO x_credit_budgets VALUES(?,?,?,?,?,?,?)').run('synthetic-old','42',100,0,1,1,0);await assert.rejects(reserveOngoing(g.store,g.env,1));
 });
-test('full $0.73 envelope must fit before requests; retained attempts do not refund',async()=>{
- const f=fixture();await reserveOngoing(f.store,f.env,270001);await assert.rejects(reserveOngoing(f.store,f.env,730000));
- const g=fixture();await reserveOngoing(g.store,g.env,730000);assert.equal(g.db.prepare('SELECT amount,unresolved_micro_usd FROM ongoing_spend').get().unresolved_micro_usd,730000);
+test('full worst-case $0.36 envelope must fit before requests; retained attempts do not refund',async()=>{
+ const f=fixture();await reserveOngoing(f.store,f.env,640001);await assert.rejects(reserveOngoing(f.store,f.env,360000));
+ const g=fixture();await reserveOngoing(g.store,g.env,360000);assert.equal(g.db.prepare('SELECT amount,unresolved_micro_usd FROM ongoing_spend').get().unresolved_micro_usd,360000);
 });
 test('owner diagnostics reject foreign binding and reveal only bounded local totals',async()=>{
  const f=fixture();f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:f.env.MCP_ALLOWED_SUBJECT,x_user_id:'42'});
- const v=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(v.reconciled,true);assert.equal(v.reply_preflight_micro_usd,730000);assert(!JSON.stringify(v).includes('synthetic-owner'));assert(!('account_id' in v));
+ const v=await ownerDiagnostics(f.env,f.store,f.clock);assert.equal(v.reconciled,true);assert.equal(v.reply_preflight_micro_usd,360000);assert(!JSON.stringify(v).includes('synthetic-owner'));assert(!('account_id' in v));
  f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:'other',x_user_id:'42'});await assert.rejects(ownerDiagnostics(f.env,f.store,f.clock));
 });
 test('monitor handler authenticates before any diagnostic query',async()=>{

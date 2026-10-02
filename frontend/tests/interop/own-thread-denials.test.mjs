@@ -35,7 +35,7 @@ for(const [label,expected,configure] of cases)test(`actual adapter/backend denie
   if(u.pathname==='/2/tweets/10001')return response({data:values.root,includes:{users:[{id:values.root.author_id,protected:false}]}});
   if(u.pathname==='/2/users/4242/mentions'){
    pages++;const data=values.mentionsStop?[{id:'30001',author_id:'5050',text:'Please STOP responding',created_at:new Date(now*1000).toISOString()}]:[];
-   return response({data,meta:{result_count:data.length,...(values.gap?{next_token:'page'+pages}:{})},...(data.length?{includes:{users:[{id:'5050',protected:false}]}}:{})});
+   return response({data,meta:{result_count:data.length,...(values.gap?{next_token:'page'+pages}:{})}});
   }
   throw Error('Unexpected lookup '+u.pathname);
  };
@@ -72,7 +72,7 @@ test('bounded opt-out catch-up survives new intents and requires a fresh scan be
    const cursor=u.searchParams.get('pagination_token'),since=u.searchParams.get('since_id');scans.push({cursor,since});
    if(since==='30015')return response({data:[],meta:{result_count:0}});
    const first=cursor==='page2'?30005:cursor==='page1'?30010:30015;const data=Array.from({length:5},(_,i)=>({id:String(first-i),author_id:'6060',text:'An unrelated harmless mention'}));
-   return response({data,meta:{result_count:5,...(cursor==='page2'?{}:{next_token:cursor==='page1'?'page2':'page1'})},includes:{users:[{id:'6060',protected:false}]}});
+   return response({data,meta:{result_count:5,...(cursor==='page2'?{}:{next_token:cursor==='page1'?'page2':'page1'})}});
   }throw Error('Unexpected mocked path');};
  const adapter=createWriteAdapter({db:frontendDb,env:{X_OWN_THREAD_REPLIES_ENABLED:'true'},fetchImpl:async(url,init)=>h.worker.fetch(new Request(url,init),h.env)});
  const makeArgs=()=>({text:'A fully caught-up reply. Reply STOP to opt out.',in_reply_to_post_id:'20001',idempotency_key:crypto.randomUUID()});

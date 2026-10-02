@@ -1,8 +1,10 @@
+import { originalPrice } from './pricing.mjs';
 import { assert } from './security.mjs';
 import { isPostId } from './write-validation.mjs';
 
 export const MAX_REPLY_ANCESTORS=4;
-export const REPLY_PREFLIGHT_MICROUSD=490000+MAX_REPLY_ANCESTORS*60000;
+export const REPLY_PREFLIGHT_MICROUSD=20000+(2+MAX_REPLY_ANCESTORS)*15000+50000+200000;
+export const replyPreflightPrice=text=>REPLY_PREFLIGHT_MICROUSD-200000+originalPrice(text);
 export const OPT_OUT_NOTICE='Reply STOP to opt out.';
 export function optOutSignal(text) {
   if(typeof text!=='string')return false;
@@ -62,15 +64,15 @@ export class ReplyGuard {
       'REPLY_AUTHOR_OPTED_OUT',403);
   }
   async lookup(x,token,id) {
-    const query=new URLSearchParams({'post.fields':'author_id,conversation_id,in_reply_to_user_id,referenced_posts,edit_history_post_ids,created_at,entities,text,possibly_sensitive,withheld,note_post',expansions:'author_id,referenced_posts','user.fields':'protected,username'});
-    // One main post, at most three direct references and all four authors.
-    // Reserve worst-case standard pricing: 4*$0.005 + 4*$0.010 = $0.060.
-    const result=await x.request(`/2/tweets/${id}?${query}`,{token,records:4,creditMicroUsd:60000});
+    const query=new URLSearchParams({'post.fields':'author_id,conversation_id,in_reply_to_user_id,referenced_posts,edit_history_post_ids,created_at,entities,text,possibly_sensitive,withheld,note_post',expansions:'author_id','user.fields':'protected,username'});
+    // One main post and its author only. Referenced IDs are fields, not expansions.
+    // Standard pricing: 1*$0.005 + 1*$0.010 = $0.015.
+    const result=await x.request(`/2/tweets/${id}?${query}`,{token,records:1,creditMicroUsd:15000});
     assert(object(result.data),'REPLY_LOOKUP_INVALID',502);
     const post=result.data;
     assert(post.id===id&&isPostId(post.author_id)&&typeof post.text==='string'&&post.text.length<=20000,'REPLY_LOOKUP_INVALID',502);
     await this.ingest(post);
-    assert(noErrors(result),'REPLY_LOOKUP_INVALID',502);expansionBounds(result,3,4);
+    assert(noErrors(result),'REPLY_LOOKUP_INVALID',502);expansionBounds(result,0,1);
     assert(post.id===id&&isPostId(post.author_id)&&isPostId(post.conversation_id)&&typeof post.text==='string'
       &&post.text.length<=20000&&typeof post.created_at==='string'&&post.created_at.length<=40&&/^\d{4}-\d{2}-\d{2}T/.test(post.created_at)&&Number.isFinite(Date.parse(post.created_at)), 'REPLY_LOOKUP_INVALID',502);
     const users=result.includes?.users;
@@ -97,11 +99,11 @@ export class ReplyGuard {
       let cursor=state.next_token??null,newest=state.highwater??state.since_id??null;
       const resumed=Boolean(cursor);
       for(let page=0;page<2;page++) {
-        const params=new URLSearchParams({max_results:'5','post.fields':'text,created_at',expansions:'author_id'});
+        const params=new URLSearchParams({max_results:'5','post.fields':'author_id,text,created_at'});
         if(state.since_id)params.set('since_id',state.since_id);
         if(cursor)params.set('pagination_token',cursor);
-        const result=await x.request(`/2/users/${this.account}/mentions?${params}`,{token,records:5,creditMicroUsd:75000});
-        assert(noErrors(result)&&object(result.meta),'REPLY_OPT_OUT_SCAN_INVALID',502);expansionBounds(result,0,5);
+        const result=await x.request(`/2/users/${this.account}/mentions?${params}`,{token,records:5,creditMicroUsd:25000});
+        assert(noErrors(result)&&object(result.meta),'REPLY_OPT_OUT_SCAN_INVALID',502);expansionBounds(result,0,0);
         const rows=result.data??[];
         assert(Array.isArray(rows)&&rows.length<=5&&result.meta.result_count===rows.length&&rows.every(v=>object(v)
           &&isPostId(v.id)&&isPostId(v.author_id)&&typeof v.text==='string'&&v.text.length<=20000),'REPLY_OPT_OUT_SCAN_INVALID',502);

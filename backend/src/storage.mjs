@@ -1,4 +1,4 @@
-import { ongoing, reserveOngoing, periods } from './ongoing.mjs';
+import { ongoing, reserveOngoing, ongoingReservationStatement, periods } from './ongoing.mjs';
 import { assert, positiveLimit, randomValue, SafeError } from './security.mjs';
 import { CREDIT_RUN_ID,CREDIT_RUN_DEADLINE,CREDIT_MAX_MICROUSD } from './credit-policy.mjs';
 
@@ -120,7 +120,65 @@ export class Store {
     try {await this.run("UPDATE ongoing_spend SET unresolved_micro_usd=0 WHERE id=?",attempt.id);} catch {}
   }
 
+  markCreditDispatched(attempt=this.creditAttempt) {if(attempt)attempt.dispatched=true;}
+
+  async releaseUnattemptedCredit(attempt=this.creditAttempt) {
+    // Only this invocation's ephemeral, never-dispatched attempt is eligible.
+    // No lookup by user-supplied ID and no historic/billing-based reconciliation.
+    if(!attempt||attempt.dispatched||attempt.released)return;
+    if(attempt.prepaid){attempt.prepaid.remaining+=attempt.amount;attempt.prepaid.consumed-=attempt.amount;}
+    else await this.run("UPDATE ongoing_spend SET amount=0,unresolved_micro_usd=0 WHERE id=? AND kind='api' AND amount=?",attempt.id,attempt.amount);
+    attempt.released=true;
+  }
+
+  async reserveOngoingRequest(env,records,write,amount,headroom) {
+    this.checkCreditWindow(env);
+    const now=this.clock(),{day,month}=periods(now),hour=Math.floor(now/3600);
+    const specs=[
+      [`requests:day:${day}`,1,positiveLimit(env,'MAX_X_REQUESTS_DAY',16,100),now+40*86400,'LOCAL_REQUESTS_DAY_EXHAUSTED'],
+      [`requests:hour:${hour}`,1,positiveLimit(env,'MAX_X_REQUESTS_HOUR',8,20),(hour+1)*3600,'LOCAL_REQUESTS_HOUR_EXHAUSTED'],
+      ...(records?[[`records:month:${month}`,records,positiveLimit(env,'MAX_READ_RECORDS_MONTH',1000,10000),now+40*86400,'LOCAL_RECORDS_MONTH_EXHAUSTED']]:[]),
+      ...(write?[[`writes:day:${day}`,1,positiveLimit(env,'MAX_WRITES_DAY',2,6),now+40*86400,'LOCAL_WRITES_DAY_EXHAUSTED']]:[])
+    ];
+    assert(Number.isSafeInteger(amount)&&amount>0&&Number.isSafeInteger(records)&&records>=0,'INVALID_RESERVATION');
+    const prepaid=this.prepaidCredit;
+    if(prepaid)assert(prepaid.remaining>=amount,'ONGOING_PREPAID_EXHAUSTED',429);
+    // Read checks provide precise diagnostics; the batch repeats all checks
+    // atomically so concurrent callers cannot bypass quotas or partially charge.
+    const cooldown=await this.first("SELECT until_at FROM cooldowns WHERE name='x'");
+    assert(!cooldown||cooldown.until_at<=now,'X_RATE_LIMIT_COOLDOWN',429);
+    for(const [bucket,n,limit,,code] of specs){
+      const row=await this.first('SELECT used FROM budgets WHERE bucket=?',bucket);
+      assert((row?.used??0)+n<=limit,code,429);
+    }
+    const statements=[this.statement("SELECT json(CASE WHEN NOT EXISTS(SELECT 1 FROM cooldowns WHERE name='x' AND until_at>?) THEN 'null' ELSE 'denied' END)",now)];
+    for(const [bucket,n,limit,expires] of specs)statements.push(this.statement(`INSERT INTO budgets(bucket,used,expires_at)
+      VALUES(?,CASE WHEN ?<=? THEN ? ELSE NULL END,?) ON CONFLICT(bucket) DO UPDATE SET
+      used=CASE WHEN budgets.used+excluded.used<=? THEN budgets.used+excluded.used ELSE NULL END`,bucket,n,limit,n,expires,limit));
+    const spendIndex=statements.length;
+    if(!prepaid){
+      statements.push(ongoingReservationStatement(this,env,amount,headroom));
+      // A zero-row conditional spend insertion must abort the whole D1 batch.
+      statements.push(this.statement("SELECT json(CASE WHEN changes()=1 THEN 'null' ELSE 'denied' END)"));
+    }
+    if(prepaid){assert(prepaid.remaining>=amount,'ONGOING_PREPAID_EXHAUSTED',429);prepaid.remaining-=amount;}
+    let results;
+    try {results=await this.db.batch(statements);assert(results.length===statements.length&&results.every(r=>r.success!==false),'LOCAL_REQUEST_RESERVATION_REJECTED',429);} catch(error) {
+      if(prepaid)prepaid.remaining+=amount;
+      // D1 batch is transactional. Failed execution rolls back every statement;
+      // uncertain DB responses never justify a refund or any provider dispatch.
+      throw new SafeError('LOCAL_REQUEST_RESERVATION_REJECTED',429);
+    }
+    if(prepaid){prepaid.consumed+=amount;this.creditAttempt={prepaid,amount};}
+    else {
+      const row=results[spendIndex]?.results?.[0];
+      assert(row&&Number.isSafeInteger(row.id),'ONGOING_RESERVATION_RESULT_UNCERTAIN',503);
+      this.ongoingCycleEnd=row.cycle_end;this.ongoingReservationDay=day;this.creditAttempt={id:row.id,amount};
+    }
+  }
+
   async reserveX(env, records = 0, write = false, creditMicroUsd = undefined, headroom=0) {
+    if(ongoing(env))return this.reserveOngoingRequest(env,records,write,creditMicroUsd??(write?200000:records?records*5000:10000),headroom);
     // Worst-case posted prices, no ownership discount or dedup assumption. All
     // mutations reserve $0.20 (including URL posts); unclassified auth/user reads
     // reserve $0.01. Expanded reads pass an explicit conservative bound.

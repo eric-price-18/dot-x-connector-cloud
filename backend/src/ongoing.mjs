@@ -30,11 +30,11 @@ export async function allowance(store,env) {
     provider_remaining:5000000-row.confirmed_used_micro_usd-row.pending_legacy_micro_usd-row.cycle_reserved,
     credit_remaining:row.prepaid_micro_usd-row.credit_used};
 }
-export async function reserveOngoing(store,env,amount,headroom=0) {
+export function ongoingReservationStatement(store,env,amount,headroom=0) {
   assert(Number.isSafeInteger(amount)&&amount>0&&Number.isSafeInteger(headroom)&&headroom>=0,'INVALID_RESERVATION');
   const now=store.clock(),{day,month}=periods(now),account=env.X_EXPECTED_USER_ID;
   assert(periods(now+90).day===day,'ONGOING_CALENDAR_BOUNDARY_PAUSE',429);
-  const row=await store.first(`INSERT INTO ongoing_spend(account_id,day,month,amount,unresolved_micro_usd,kind,created_at)
+  return store.statement(`INSERT INTO ongoing_spend(account_id,day,month,amount,unresolved_micro_usd,kind,created_at)
     SELECT ?,?,?,?,?, 'api',? FROM ongoing_cycles r JOIN ongoing_credit_state c ON c.account_id=r.account_id
     JOIN ongoing_legacy_carry l ON l.account_id=c.account_id AND l.legacy_total_micro_usd=c.legacy_total_micro_usd AND l.dates_uncertain=1
     WHERE r.account_id=? AND r.cycle_start<=? AND r.cycle_end>?
@@ -47,6 +47,9 @@ export async function reserveOngoing(store,env,amount,headroom=0) {
       +COALESCE((SELECT SUM(unresolved_micro_usd) FROM ongoing_spend WHERE account_id=r.account_id AND kind='api' AND created_at<r.cycle_start),0)<=5000000
     RETURNING id,(SELECT cycle_end FROM ongoing_cycles WHERE account_id=ongoing_spend.account_id AND cycle_start<=ongoing_spend.created_at AND cycle_end>ongoing_spend.created_at) AS cycle_end`,account,day,month,amount,amount,now,account,now,now+90,account,
     amount+headroom,account,day,amount+headroom,account,month,amount+headroom,account,amount+headroom,account);
+}
+export async function reserveOngoing(store,env,amount,headroom=0) {
+  const row=await ongoingReservationStatement(store,env,amount,headroom).first();
   assert(row,'ONGOING_SPEND_CAP_OR_RECONCILIATION',429);store.ongoingCycleEnd=row.cycle_end;return row.id;
 }
 export async function claimOperation(store,env,kind,key) {

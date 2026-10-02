@@ -1,7 +1,8 @@
+import { originalPrice } from './pricing.mjs';
 import { ongoing, claimOperation, reserveOngoing, periods } from './ongoing.mjs';
 import { assert, digest, enabled, positiveLimit, readBodyBytes, SafeError } from './security.mjs';
 import { SERVICE } from './service.mjs';
-import { ReplyGuard, OPT_OUT_NOTICE, REPLY_PREFLIGHT_MICROUSD } from './reply-guard.mjs';
+import { ReplyGuard, OPT_OUT_NOTICE, replyPreflightPrice } from './reply-guard.mjs';
 import { canaryMentionAuthorization } from './canary-mention.mjs';
 import { isPostId } from './write-validation.mjs';
 
@@ -98,7 +99,7 @@ export class ServiceWrites {
         return receipt(name,key,'rejected','idempotency_binding_conflict');
       return this.fromRow(row,key);
     }
-    let x,keyHash,ownedSend=false,prepaidId;
+    let x,keyHash,ownedSend=false,prepaidId,prepaidAmount;
     const replyGuard=isReply?new ReplyGuard(this.env,this.store,this.clock):null;
     try {
       if(isReply)await replyGuard.checkUnclaimed(args);
@@ -122,11 +123,12 @@ export class ServiceWrites {
         await claimOperation(this.store,this.env,isReply?'reply':'original',key);
         if(isReply) {
           // Reserve the full bounded workflow BEFORE any paid token/lookup call:
-          // refresh + identity .02 + root/target .12 + four ancestors .24 + STOP .15 + dispatch .20.
+          // .02 refresh/identity + six .015 lookups + two .025 STOP pages + classified write.
+          prepaidAmount=replyPreflightPrice(args.text);
           const day=periods(this.clock()).day;
-          prepaidId=await reserveOngoing(this.store,this.env,REPLY_PREFLIGHT_MICROUSD);
+          prepaidId=await reserveOngoing(this.store,this.env,prepaidAmount);
           this.store.ongoingReservationDay=day;
-          this.store.prepaidCredit={remaining:REPLY_PREFLIGHT_MICROUSD,consumed:0,resolved:0};
+          this.store.prepaidCredit={remaining:prepaidAmount,consumed:0,resolved:0};
           x.store.prepaidCredit=this.store.prepaidCredit;
           x.store.ongoingReservationDay=day;
           x.store.ongoingCycleEnd=this.store.ongoingCycleEnd;
@@ -147,9 +149,12 @@ export class ServiceWrites {
       }
       // Existing request/hour/day and total write budgets stay in force and are
       // pessimistic: unsuccessful/unknown dispatches are never refunded.
-      await this.store.reserveX(this.env,0,true,undefined);
       const current=await this.store.account();x.bind(current);
       assert(current.version===grant.version && current.refresh_status==='idle','X_GRANT_SUPERSEDED',409);
+      await this.store.reserveX(this.env,0,true,ongoing(this.env)&&name!=='x_repost'?originalPrice(args.text):undefined);
+      // Budget work awaits D1: recheck the grant after it before any dispatch claim.
+      const dispatchAccount=await this.store.account();x.bind(dispatchAccount);
+      assert(dispatchAccount.version===grant.version && dispatchAccount.refresh_status==='idle','X_GRANT_SUPERSEDED',409);
       if(isReply) {
         await replyGuard.claimDispatch(binding,grant.version,interaction,keyHash,sendHash);
         ownedSend=true;
@@ -160,12 +165,13 @@ export class ServiceWrites {
     } catch(error) {
       // Only pre-dispatch failures reach this catch. dispatch contains all
       // transport, response and post-dispatch cooldown errors as unknown.
+      if(ongoing(this.env))await this.store.releaseUnattemptedCredit();
       return this.finish(name,key,'rejected',codeOf(error),undefined,ownedSend?keyHash:undefined);
     } finally {
       // Release only budget for stages never attempted. Each attempted/unknown
       // call keeps its full bound; a crash keeps the entire original envelope.
       if(prepaidId && this.store.prepaidCredit) {
-        try {await this.store.run(`UPDATE ongoing_spend SET amount=?,unresolved_micro_usd=? WHERE id=? AND kind='api' AND amount=?`,this.store.prepaidCredit.consumed,this.store.prepaidCredit.consumed-this.store.prepaidCredit.resolved,prepaidId,REPLY_PREFLIGHT_MICROUSD);} catch {}
+        try {await this.store.run(`UPDATE ongoing_spend SET amount=?,unresolved_micro_usd=? WHERE id=? AND kind='api' AND amount=?`,this.store.prepaidCredit.consumed,this.store.prepaidCredit.consumed-this.store.prepaidCredit.resolved,prepaidId,prepaidAmount);} catch {}
       }
     }
   }
@@ -183,7 +189,7 @@ export class ServiceWrites {
     const unknown=code=>({state:'unknown',code});
     let response;
     try {
-      response=await x.xFetch(`https://api.x.com${path}`,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(8000),
+      this.store.markCreditDispatched();response=await x.xFetch(`https://api.x.com${path}`,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(8000),
         headers:{accept:'application/json',authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(payload)});
     } catch { return unknown('x_dispatch_uncertain'); }
     if(response.status===429) {

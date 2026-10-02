@@ -11,7 +11,7 @@ test('own-thread reply is exact-text single-target and independent of original p
  assert.deepEqual(JSON.parse(h.sends()[0].options.body),{text:replyArgs().text,reply:{in_reply_to_tweet_id:'1002'}});
  assert.equal(h.data.lookupCalls,2);assert.equal(h.state.xCalls.length,4);
  assert.deepEqual((await run(h)).receipt,r.receipt);assert.equal(h.state.xCalls.length,4);
- const credit=h.db.all('SELECT used_micro_usd FROM x_credit_budgets')[0];assert.equal(credit.used_micro_usd,395000);
+ const credit=h.db.all('SELECT used_micro_usd FROM x_credit_budgets')[0];assert.equal(credit.used_micro_usd,255000);
 });
 
 test('reply parent-author proof does not depend on optional in_reply_to_user_id default',async t=>{

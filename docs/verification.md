@@ -5,9 +5,9 @@ Local source-export verification, 2 October 2026, Linux with Node 24.19.0. These
 ## Passed
 
 - Clean dependency installation with both pinned package lockfiles
-- Backend syntax/configuration (65 modules), six empty-schema migrations and integrity checks
-- Backend Node suite: 449 passed, zero failed or skipped
-- Backend workerd/local D1 suite: 85 passed, zero failed or skipped
+- Backend syntax/configuration (67 modules), six empty-schema migrations and integrity checks
+- Backend Node suite: 451 passed, zero failed or skipped
+- Backend workerd/local D1 suite: 100 passed, zero failed or skipped
 - Backend Wrangler dry-run with network denial and telemetry disabled
 - Prior-release evidence reused for the unchanged bundled parser: rebuilt byte-for-byte from pinned dependencies
 - Frontend shipped-defaults regression: two passed
@@ -25,9 +25,15 @@ Backend workerd fixtures use an explicit synthetic 2035 clock and advance it dir
 
 ## Nested/ongoing candidate boundary
 
-The local adaptation additionally covers four intermediate ancestors, same-ID target/root rejection before a second lookup, fresh parent evidence, full $0.73 preflight reservation, atomic five-attempt ceiling, 900-second spacing, missing reconciliation, conservative unresolved liabilities, and owner-only local diagnostics. No live X call or deployment was used to verify this candidate. Private deployment results and the private candidate's test counts are not this source's evidence.
+The local adaptation additionally covers four intermediate ancestors, same-ID target/root rejection before a second lookup, fresh parent evidence, classified $0.175/$0.36 preflight reservations, atomic five-attempt ceiling, 900-second spacing, missing reconciliation, conservative unresolved liabilities, and owner-only local diagnostics. No live X call or deployment was used to verify this candidate. Private deployment results and the private candidate's test counts are not this source's evidence.
 
 Reconciliation uses the shipped owner form and local validator with administrator-supplied evidence. The template provides no automatic dashboard import, private historical exclusions or activated budget records. UTC calendar defaults and conservative mutation reservations deliberately avoid private operational assumptions. Paid polling and all gates remain disabled.
+
+## Pricing/accounting parity follow-up
+
+Offline coverage additionally verifies atomic request-quota and money reservations under concurrency; no partial charges after known local denial; no release of historical, dispatched, unknown or ambiguously committed liabilities; and release only of the current invocation's provably unattempted call. Lookup/STOP responses reject unrequested expansions. Plain text with sentence-ending punctuation uses the lower reservation; encoded, disguised and Unicode URL ambiguity keeps the higher one.
+
+The existing grant-replacement regression remains intact. The public adaptation checks the grant both before and after awaited budget reservation; a real-D1 trigger test rotates it during reservation and proves zero dispatch while an existing unknown liability remains unchanged. No live reply-success claim follows from these tests.
 
 ## Reproducibility
 
