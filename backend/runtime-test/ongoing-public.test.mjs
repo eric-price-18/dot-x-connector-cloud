@@ -45,6 +45,47 @@ test('workerd ongoing: insufficient full envelope causes zero paid preflight cal
  assert.equal((await h.call()).receipt.code,'ongoing_spend_cap_or_reconciliation');assert.equal(h.xCalls().length,0);
 });
 
+test('workerd ongoing: owner diagnostics count legacy reply liabilities once with local D1 only',async t=>{
+ const {Store}=await import('../src/storage.mjs');
+ const {dayStart,periods}=await import('../src/ongoing.mjs');
+ const {ownerDiagnostics}=await import('../src/ongoing-diagnostics.mjs');
+ const h=await setup(t);await h.setTime(h.clock()+3600);
+ const store=new Store(h.db,h.clock),now=h.clock(),start=dayStart(now),account=h.bindings.X_EXPECTED_USER_ID;
+ async function diagnosticCount(expected) {
+  const result=await ownerDiagnostics(h.bindings,store,h.clock);
+  assert.equal(result.reconciled,true);assert.equal(result.claimed_reply_attempts_today,expected);
+  assert.equal(h.state.calls.length,0);
+ }
+ async function receipt(n,state,{accountId=account,operation='x_reply',createdAt=now}={}) {
+  await h.db.prepare(`INSERT INTO service_writes
+   (idempotency_key,service_subject,owner_issuer,owner_subject,account_id,operation,payload_hash,state,code,post_id,created_at,updated_at)
+   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(key(n),'synthetic-service',h.bindings.MCP_ISSUER,h.bindings.MCP_ALLOWED_SUBJECT,
+    accountId,operation,'synthetic-payload',state,'synthetic-code',state==='succeeded'?String(9000+n):null,createdAt,createdAt).run();
+ }
+ async function operation(n,{accountId=account,kind='reply',createdAt=now}={}) {
+  await h.db.prepare('INSERT INTO ongoing_operations(intent,account_id,day,kind,created_at) VALUES(?,?,?,?,?)')
+   .bind(key(n),accountId,periods(createdAt).day,kind,createdAt).run();
+ }
+ await diagnosticCount(0);
+ await operation(20);await diagnosticCount(1);
+ let expected=1;
+ for(const [index,state] of ['pending','succeeded','unknown'].entries()) {
+  await receipt(index+1,state,{createdAt:index===0?start:now});await diagnosticCount(++expected);
+ }
+ // The pending receipt and its ongoing claim represent the same attempt.
+ await operation(1,{createdAt:start});await diagnosticCount(4);
+ for(const [n,state,overrides] of [[4,'rejected',{}],[5,'pending',{accountId:'8484'}],
+  [6,'succeeded',{createdAt:start-1}],[7,'unknown',{operation:'x_create_original_post'}],[8,'pending',{operation:'x_repost'}]]) {
+  await receipt(n,state,overrides);await diagnosticCount(4);
+ }
+ for(const [n,overrides] of [[21,{accountId:'8484'}],[22,{createdAt:start-1}],[23,{kind:'original'}]]) {
+  await operation(n,overrides);await diagnosticCount(4);
+ }
+ assert.equal((await h.db.prepare('SELECT COUNT(*) AS n FROM ongoing_spend').first()).n,0);
+ assert.equal((await h.db.prepare('SELECT COUNT(*) AS n FROM budgets').first()).n,0);
+ assert.deepEqual(h.state.calls,[]);
+});
+
 test('atomic request quotas and dollars: concurrent losers leave no partial reservations',async t=>{
  const {Store}=await import('../src/storage.mjs');const {periods}=await import('../src/ongoing.mjs');
  const h=await setup(t,{MAX_X_REQUESTS_DAY:'3',MAX_X_REQUESTS_HOUR:'3'});

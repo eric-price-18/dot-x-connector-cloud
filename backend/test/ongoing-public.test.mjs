@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync,readdirSync } from 'node:fs';
 import { Store } from '../src/storage.mjs';
-import { claimOperation,reserveOngoing,periods } from '../src/ongoing.mjs';
+import { claimOperation,reserveOngoing,periods,dayStart } from '../src/ongoing.mjs';
 import { ownerDiagnostics } from '../src/ongoing-diagnostics.mjs';
 import { OwnerLogin } from '../src/owner.mjs';
 function fixture(reconciled=true) {
@@ -14,6 +14,15 @@ function fixture(reconciled=true) {
  const store=new Store(wrapper,()=>now),env={X_ONGOING_OPERATIONS_ENABLED:'true',MAX_REPLIES_DAY:'10',X_EXPECTED_USER_ID:'42',MCP_ISSUER:'https://identity.example.invalid',MCP_ALLOWED_SUBJECT:'synthetic-owner'};
  if(reconciled){db.prepare('INSERT INTO ongoing_credit_state VALUES(?,?,?,?)').run('42',4000000,0,'synthetic-evidence');db.prepare('INSERT INTO ongoing_cycles VALUES(?,?,?,?,?,?,?)').run('42',now-86400,now+86400*20,0,0,'synthetic-evidence','2035-01');db.prepare("INSERT INTO ongoing_legacy_carry VALUES('42',0,0,0,0,0,0,'2035-01-02','2035-01',1,?)").run(now);}
  return {db,store,env,clock:()=>now,advance:s=>now+=s};
+}
+function diagnosticFixture() {
+ const f=fixture();f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:f.env.MCP_ALLOWED_SUBJECT,x_user_id:'42'});return f;
+}
+function legacyReply(f,key,{state='pending',account='42',operation='x_reply',created=f.clock()-900}={}) {
+ f.db.prepare(`INSERT INTO service_writes(idempotency_key,service_subject,owner_issuer,owner_subject,
+  account_id,operation,payload_hash,state,code,post_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+  .run(key,'synthetic-service',f.env.MCP_ISSUER,f.env.MCP_ALLOWED_SUBJECT,account,operation,
+   'synthetic-payload',state,'synthetic-code',state==='succeeded'?'9001':null,created,created);
 }
 test('public ongoing template requires reconciliation and obeys exact daily cap',async()=>{
  const missing=fixture(false);await assert.rejects(reserveOngoing(missing.store,missing.env,1));
@@ -69,6 +78,72 @@ test('owner diagnostics and enforcement reject invalid reply limits consistently
   await assert.rejects(claimOperation(f.store,f.env,'reply','invalid'),e=>e.code==='INVALID_REPLY_LIMIT'&&e.status===503);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM ongoing_operations').get().n,0);
  }
+});
+test('owner diagnostics include each retained legacy reply state without changing ledgers or exposing records',async()=>{
+ for(const state of ['pending','succeeded','unknown']) {
+  const f=diagnosticFixture();f.env.MAX_REPLIES_DAY='1';legacyReply(f,'synthetic-legacy-hidden',{state});
+  const before=f.db.prepare('SELECT total_changes() AS n').get().n;
+  const value=await ownerDiagnostics(f.env,f.store,f.clock);
+  assert.equal(value.claimed_reply_attempts_today,1);assert.equal(value.reconciled,true);
+  assert.equal(f.db.prepare('SELECT total_changes() AS n').get().n,before);
+  assert.deepEqual(Object.keys(value).sort(),['enabled','polling_enabled','calendar','reply_ceiling','minimum_spacing_seconds',
+   'reply_preflight_micro_usd','reply_plain_preflight_micro_usd','reconciled','claimed_reply_attempts_today',
+   'day_remaining_micro_usd','month_remaining_micro_usd','provider_remaining_micro_usd','credit_remaining_micro_usd'].sort());
+  assert(!JSON.stringify(value).includes('synthetic-'));
+  await assert.rejects(claimOperation(f.store,f.env,'reply','new'),e=>e.code==='ONGOING_OPERATION_LIMIT_OR_COOLDOWN');
+ }
+});
+test('owner diagnostics count paired receipts once and retain ongoing claims after rejection',async()=>{
+ for(const state of ['pending','succeeded','unknown','rejected']) {
+  const f=diagnosticFixture();f.env.MAX_REPLIES_DAY='2';
+  await claimOperation(f.store,f.env,'reply','paired');f.advance(900);legacyReply(f,'paired',{state});
+  assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,1);
+  await claimOperation(f.store,f.env,'reply','next');f.advance(900);
+  assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,2);
+  await assert.rejects(claimOperation(f.store,f.env,'reply','extra'),e=>e.code==='ONGOING_OPERATION_LIMIT_OR_COOLDOWN');
+ }
+});
+test('owner diagnostics exclude unrelated accounts, previous days, other operations and unclaimed rejections',async()=>{
+ const f=diagnosticFixture(),start=dayStart(f.clock());f.env.MAX_REPLIES_DAY='1';
+ assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,0);
+ legacyReply(f,'previous-day',{created:start-1});legacyReply(f,'other-account',{account:'99'});
+ legacyReply(f,'original',{operation:'x_create_original_post'});legacyReply(f,'repost',{operation:'x_repost'});
+ legacyReply(f,'rejected',{state:'rejected'});
+ for(const [intent,account,day,kind] of [['old','42',periods(start-1).day,'reply'],['foreign','99',periods(start).day,'reply'],['other','42',periods(start).day,'original']])
+  f.db.prepare('INSERT INTO ongoing_operations VALUES(?,?,?,?,?)').run(intent,account,day,kind,start);
+ assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,0);
+ await claimOperation(f.store,f.env,'reply','current');
+ assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,1);
+});
+test('owner diagnostics match the conservative legacy UTC boundary and keep usage visible with a zero cap',async()=>{
+ for(const createdOffset of [0,86400]) {
+  const f=diagnosticFixture();legacyReply(f,'boundary',{created:dayStart(f.clock())+createdOffset});
+  f.env.MAX_REPLIES_DAY='0';const value=await ownerDiagnostics(f.env,f.store,f.clock);
+  assert.equal(value.reply_ceiling,0);assert.equal(value.claimed_reply_attempts_today,1);
+  f.env.MAX_REPLIES_DAY='1';await assert.rejects(claimOperation(f.store,f.env,'reply','new'),e=>e.code==='ONGOING_OPERATION_LIMIT_OR_COOLDOWN');
+ }
+});
+test('owner diagnostics use the same global intent pairing as enforcement across day, account and kind',async()=>{
+ for(const [account,day,kind] of [['42','2035-01-01','reply'],['99','2035-01-02','reply'],['42','2035-01-02','original']]) {
+  const f=diagnosticFixture();f.env.MAX_REPLIES_DAY='1';legacyReply(f,'paired');
+  f.db.prepare('INSERT INTO ongoing_operations VALUES(?,?,?,?,?)').run('paired',account,day,kind,f.clock()-900);
+  assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,0);
+  await claimOperation(f.store,f.env,'reply','new');
+  assert.equal((await ownerDiagnostics(f.env,f.store,f.clock)).claimed_reply_attempts_today,1);
+ }
+});
+test('owner diagnostics return a safe blocked result when the count query fails',async()=>{
+ const f=diagnosticFixture(),first=f.store.first.bind(f.store);
+ f.store.first=(sql,...args)=>{if(sql.includes('AS attempts'))throw Error('synthetic-private-storage-detail');return first(sql,...args);};
+ const value=await ownerDiagnostics(f.env,f.store,f.clock);
+ assert.equal(value.reconciled,false);assert.equal(value.blocked_reason,'reconciliation_or_storage_unavailable');
+ assert(!Object.hasOwn(value,'claimed_reply_attempts_today'));assert(!JSON.stringify(value).includes('synthetic-'));
+});
+test('owner diagnostics authenticate account binding before reading legacy counts',async()=>{
+ const f=diagnosticFixture();let reads=0;
+ f.store.account=async()=>({issuer:f.env.MCP_ISSUER,subject:'foreign-owner',x_user_id:'42'});
+ f.store.first=async()=>{reads++;throw Error('unexpected diagnostic query');};
+ await assert.rejects(ownerDiagnostics(f.env,f.store,f.clock));assert.equal(reads,0);
 });
 test('monitor handler authenticates before any diagnostic query',async()=>{
  let touched=false;const owner={session:async()=>{throw Error('unauthorized')},store:{account:async()=>{touched=true}},env:{},clock:()=>0};
