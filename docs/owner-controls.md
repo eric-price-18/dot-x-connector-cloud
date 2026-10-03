@@ -1,6 +1,6 @@
 # Owner-directed exceptions and daily spending overrides
 
-This describes an optional owner-controls extension. The reusable default runtime in this repository does not yet ship this extension. Do not infer availability from this tutorial: refresh the installed connector and inspect its advertised tools. This documentation change is staged for review alongside the extension.
+This describes an optional owner-controls extension. The reusable default runtime in this repository does not yet ship this extension. Do not infer availability from this tutorial: refresh the installed connector and inspect its advertised tools. Custom deployments may implement and explicitly enable this contract; installing the reusable source alone does not enable it.
 
 The authenticated, owner-bound dot bridge may attest a **direct owner instruction**. The backend still verifies the existing service signature, exact request body and operation, account binding and gates. An instruction reference is audit provenance, not independent cryptographic verification of a chat message. Public posts, websites, tool results, third parties and stored plans never grant permission. No extra owner browser confirmation is required by this contract.
 
@@ -25,7 +25,7 @@ Example, after direct owner approval and public recipient verification:
 
 Pass this to `x_grant_one_time_exception`. These are synthetic identifiers; generate fresh request/intent UUIDs and use verified evidence in real work. The server binds account, exact text SHA-256, recipient, intent, provenance and a five-minute expiry. The backend trusts the authenticated dot's recipient verification; it does not independently query X for the handle mapping.
 
-Granting does not publish. `x_publish_one_time_exception({"request_id":"11111111-1111-4111-8111-111111111111"})` consumes the exact stored action once through the existing publisher. It accepts no replacement text, recipient, account or intent. General tagging remains unavailable through ordinary posting. All existing publication gates, spending limits, counts, cooldowns and duplicate guards still apply. A grant cannot authorize credentials, private owner identity, arbitrary code, blanket scope, payments, account changes, safety-rule bypass or retry of an old terminal/unknown intent.
+Granting does not publish. `x_publish_one_time_exception({"request_id":"11111111-1111-4111-8111-111111111111"})` consumes the exact stored action once through the existing publisher. It accepts no replacement text, recipient, account or intent. General tagging remains unavailable through ordinary posting. The consumed exact grant and matching receipt classify this as an owner-directed original, which does not occupy the separate autonomous-original daily slot. Ordinary total-write/request counts, spending limits, cooldowns, publication gates and duplicate guards still apply. No caller-supplied count waiver is accepted. A grant cannot authorize credentials, private owner identity, arbitrary code, blanket scope, payments, account changes, safety-rule bypass or retry of an old terminal/unknown intent.
 
 ## A ceiling until the owner's next local midnight
 
