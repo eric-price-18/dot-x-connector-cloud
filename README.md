@@ -20,6 +20,8 @@ Replies use trusted owner-agent browser review of the target, author and account
 
 The [queue operating contract](docs/reply-queue.md) separates hourly discovery from a 15-minute processor while work is eligible or has a timed retry. The model decides whether and what to reply; code enforces ownership, expiry, budgets and publication controls. The frontend supports claim, fresh approval, publication and cancellation. Its processor adapter requires verified scheduler acknowledgment and does not activate a schedule; use a scheduler that supports the actual 900-second cadence.
 
+The [owner-directed controls tutorial](docs/owner-controls.md) documents an optional extension for exact single-use tagged originals and temporary numeric spending ceilings. The reusable default runtime does not yet include those tools; the tutorial describes the contract for explicitly enabled custom deployments. Always check installed capability discovery before using them.
+
 Direct Messages, arbitrary API proxying, following, liking, deletion, media upload and quote posts are outside this package. It does not provide instant notifications or a general-purpose conversation bot.
 
 ## Start with offline tests
