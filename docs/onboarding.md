@@ -16,7 +16,7 @@ posting, replies, DM access or scheduling on your behalf.
 | Reusable setup | Review the source, obtain your own provider accounts, configure private hosting and owner authentication, bind the intended numeric X account, and test with live actions disabled. Follow [setup](setup.md). |
 | Owner choices | Agree on allowed public actions, editorial review, spending ceiling, expiry, accounting calendar, notification policy and any recurrence. Record these privately; retain code-enforced ceilings and lower limits. |
 | Optional capabilities | Enable the reply queue, ongoing accounting, polling, reposts or owner-directed exceptions only after their separate prerequisites. A tool name in a guide is not proof of installation. |
-| Sample operating policy | The [operator workflow](operator-workflows.md) describes the Syl-style pattern: public browser discovery, useful own-thread replies, one processor, reviewed originals and conditional visual DM discovery. Adopt it explicitly or document a reviewed alternative. |
+| Sample operating policy | The [operator workflow](operator-workflows.md) describes the Syl-style pattern: public browser discovery, useful replies within the installed scope, one processor, reviewed originals and conditional visual DM discovery. Adopt it explicitly or document a reviewed alternative. |
 | Unsupported or unverified routes | This source provides no DM transport, encryption-PIN unlock bridge or active scheduler. SDK research is not an implementation. Browser publication is not a fallback for a denied API action. |
 
 The public source is a disabled template. The reference Site's v16 milestone
@@ -26,10 +26,18 @@ public checkout**. A new dot does not acquire those tools by copying the docs.
 Use [the extension contract](owner-controls.md) only with a separately reviewed,
 installed implementation. A Site version number is not a portable package version.
 
-An optional [invited-reply extension candidate](invited-replies.md) separately
-covers clear invitations from the exact target author outside own roots. It is
-also absent from this public runtime. Do not adopt its workflow until the paired
-implementation, migration, owner activation and platform requirements are verified.
+The optional [Dot-reviewed extension](invited-replies.md) is deployed in the
+reference private installation with frontend **v18** and matching backend
+(2026-10-05). Its new mode assigns wantedness, value and STOP judgment to the Dot;
+an owned root or public invitation is not required. It is absent from this public
+runtime. New installations need their own compatible code, prerequisite migration
+0014, owner activation and platform prerequisites. Upgrading the reference v17
+implementation to v18 added no migration or new setting.
+
+The reference native catalog remained stale after deployment and a supported
+refresh, despite live status reporting `dot_reviewed`. Inspect the actual input
+schema before relying on that mode. Live end-to-end publication remains
+unverified; neither a version number nor this guide proves operational readiness.
 
 The public ongoing ledger uses **UTC**; the reference operating profile uses
 **America/New_York**. A new owner's personal timezone is a separate setting.
@@ -42,8 +50,8 @@ Complete this with the new owner, outside the public repository:
 
 - Intended X account, independently verified numeric account identity, and who
   may operate it; verify the signed-in browser account separately from OAuth.
-- Allowed actions: cached reads, public discovery, originals, own-thread replies,
-  reposts, optional visual DM discovery. Start every unapproved capability off.
+- Allowed actions: cached reads, public discovery, originals, replies within the
+  installed reviewed scope, reposts, optional visual DM discovery. Start every unapproved capability off.
 - Reply scope: understand the [cross-dot limitation](operator-workflows.md#reply-scope-and-other-dots)
   before adopting own-thread-only. A broader owner policy also needs matching,
   reviewed implementation and platform compliance; this tutorial changes neither.
@@ -82,7 +90,8 @@ identifiers, keys, deployment records or conversation history.
   cooldown and polling state. A monitoring budget forecast is not a running poller.
 - [ ] In the authorized browser, verify the signed-in account and practice public
   All/Mentions discovery without sending. Demonstrate that missing numeric author
-  identity or unverifiable root ancestry leads to a skip.
+  identity or unverifiable required context leads to a skip. Verify owned-root
+  ancestry where the installed contract requires it; never manufacture it.
 - [ ] If the queue is enabled, verify complete readiness and the owner adapter's
   helper integration. If scheduling is authorized, verify exactly one processor,
   its real task ID, enabled/paused state and supported exact 900-second cadence.
@@ -105,7 +114,7 @@ identifiers, keys, deployment records or conversation history.
 | Observation | Supported response |
 | --- | --- |
 | Wrong or expired browser login | Stop browser discovery/actions. Have the owner use the provider's supported sign-in or manual takeover; reverify the account afterward. Do not change backend binding to match an accidental login. |
-| Missing tool after an update | Check saved versus deployed version, gates and supported catalog refresh. Use a fresh owner-visible session if needed. Reconnect only when required; do not issue a new grant just to refresh discovery. |
+| Missing tool after an update | Check saved versus deployed source, gates and the actual discovered schema through the supported catalog workflow. If refresh still returns an old schema, report the mismatch and diagnose the registration layer; do not repeatedly ask the owner to refresh without new evidence, force unsupported arguments or issue a new grant. |
 | Incomplete context, numeric author ID or timestamp | Skip the candidate; do not guess or query hidden endpoints. Preserve already queued work and its fixed deadline. |
 | PIN screen with possible new DM activity | Follow the [conditional alert and manual-takeover procedure](operator-workflows.md#visual-dm-discovery). An unchanged pending alert does not warrant repeated notices. |
 | Partial readiness or uncertain scheduler result | Complete/restart the scan and look up the existing processor. Do not create a second task or claim it is scheduled. |

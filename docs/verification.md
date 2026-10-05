@@ -10,17 +10,73 @@ scheduler acknowledgment, conditional DM alerts and owner-manual PIN entry need
 their own operational verification; no SDK/DM transport or PIN-unlock bridge is
 claimed by the source tests.
 
-The [invited-reply extension guide](invited-replies.md) documents an additional,
-default-off candidate with typed provenance and final dispatch checks. Its
-private implementation test results are not results for this public runtime.
-The public source remains own-thread-only; no deployment or activation is part
-of the tutorial revision.
+The [Dot-reviewed extension guide](invited-replies.md) documents a separately
+deployed and activated reference extension with typed provenance and final
+dispatch checks. Its private implementation tests and release verification are
+not results for this public runtime. The public source remains own-thread-only;
+this tutorial update records the private release without changing runtime code
+or activating any reader's deployment.
 
-For this documentation-only revision, all 93 local links in 14 changed Markdown
+For the earlier documentation-only revision on 5 October, all 93 local links in 14 changed Markdown
 files resolved, the private-identifier scan found zero matching files, the
 backend syntax/configuration/integrity check passed (91 modules), and both
 processor/readiness helper tests passed. No runtime implementation, deployment,
 owner setting or scheduler was changed by this tutorial revision.
+
+For this v18 documentation revision, all 83 relative links and anchors in nine
+changed Markdown files resolved. The added-text private-identifier scan passed,
+and the diff contains only documentation; runtime, schemas and configuration
+remain unchanged. These checks require no live provider call.
+
+## Reference paired release: 5 October 2026
+
+The reference private deployment's matching frontend **v18** and reviewed
+backend are deployed. Backend release verification completed at **10:49 UTC**;
+Sites reported successful private deployment at **10:51 UTC**. The existing
+migration **0014** and extended-reply gate were already in place from v17.
+This v18 release added no migration, new setting, credential or permission grant.
+Native connection status reports `dot_reviewed`.
+
+The reviewed backend artifact matched live code. All 51 backend bindings and
+metadata were preserved; the Site retained its prior environment revision and
+owner-private audience. Before/after captures of schema/journal, queue metadata,
+receipts, tombstones, opt-outs, accounting and owner-control audit state matched.
+This is evidence for those captured fields, not a claim of a byte-for-byte backup
+of all private data. Existing schedules were preserved. These release checks
+made no live X call; private source and deployment identifiers stay outside this
+tutorial.
+
+Private implementation validation passed **95 backend unit tests, 254 assembled
+Workerd/D1 tests, 92 Site tests (including 10 paired signed-pipeline cases), and
+40 retained queue tests**, plus type/build, schema and artifact checks. Provider
+traffic was mocked. Independent security review cleared the candidate. These
+results describe the separately maintained reference implementation, not the
+public runtime's historical test suites below.
+
+The new mode assigns fresh wantedness, value and STOP judgment to the Dot; it
+removes the public-invitation, literal-mention and owned-root eligibility shortcuts
+for new reviews. Existing stored opt-outs and independent safeguards remain.
+The [full restriction review](restriction-review.md) also records the direct-send
+revocation fix, retained accounting/security controls and separate proposals.
+
+**Native catalog readiness and live end-to-end publication remain unverified.**
+After deployment and an owner-requested supported refresh, a fresh native tool
+catalog still exposed only `own_thread` and `direct_invitation`, including
+required root fields, while status reported `dot_reviewed`. No queue intent or
+publication was created to work around that mismatch. Local v18 discovery emits
+the new mode, but local output and successful MCP request logs do not prove the
+host's published schema. Diagnose the saved artifact and registration layer;
+do not repeat refresh requests without evidence or force unsupported arguments.
+
+An earlier v17 test stopped at eligibility review before intent creation or an X
+request. The v18 semantic change supersedes that earlier public-invitation rule;
+it does not convert that stopped attempt into a successful live test. No provider
+failure or successful publication is claimed.
+
+The reference extension remains absent from this public runtime. Every new
+deployment needs its own reviewed implementation and acceptance. This tutorial
+revision changes documentation only; no runtime, deployment, owner setting or
+scheduler is modified by publishing it.
 
 ## Passed
 
@@ -52,7 +108,7 @@ The server trusts the owner-agent's browser findings about root ownership, autho
 
 Atomic monetary/request quotas, UTC caps, default-off gates, owner reconciliation, pre/post-reservation grant fences, stored opt-outs, target claims and historical liabilities remain. The current grant-rotation regression and real-D1 trigger tests still pass. Generic reconciliation tests continue to cover the authenticated owner form, CSRF/origin/account checks, shutdown gates, D1 atomicity, replay and no credit replenishment.
 
-No deployment, paid X call, actual live reply, or hosted native-catalog integration was performed for this candidate. The public source contains no private temporary budget/count exception. Platform policy/approval and account entitlement are separate prerequisites.
+No deployment, paid X call, actual live reply, or hosted native-catalog integration was performed for the public source-export verification above. The reference release is recorded earlier in this page. The public source contains no private temporary budget/count exception. Platform policy/approval and account entitlement are separate prerequisites.
 
 ## Reproducibility
 
