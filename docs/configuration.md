@@ -63,7 +63,7 @@ boolean, differently capitalized or malformed value does not enable it.
 - **Write receipt lookup:** frontend `X_WRITE_STATUS_ENABLED`; backend
   `SERVICE_ENABLED`, `SERVICE_WRITE_ENABLED`, `X_WRITE_STATUS_ENABLED` and valid
   service/account binding. This is ledger-only and does not contact X.
-- **Queue candidate:** backend `SERVICE_ENABLED` and `SERVICE_QUEUE_ENABLED`,
+- **Optional queue:** backend `SERVICE_ENABLED` and `SERVICE_QUEUE_ENABLED`,
   with `SERVICE_WRITE_ENABLED` additionally required for ingest, claim and
   reconcile, approve, publish and cancel. Queue proofs use the separate `/service/queue/mcp` audience and bind
   operation, request ID and exact body. All queue gates ship off. A queue claim
@@ -113,3 +113,24 @@ change. A reconnect or new OAuth grant is not inherently required for discovery.
 Use UTC day/month boundaries, sample $1/day and $5/month limits, a maximum of ten replies per UTC day, at most two per recipient per UTC day, eleven total writes and 900-second spacing, and lower operator limits (including zero). Every old pending, successful and unknown operation counts without private exemptions. Paid polling remains off and cron lists remain empty. Follow the runnable [reconciliation workflow](reconciliation.md): supported D1 migrations, a local evidence validator, administrator-installed Worker secret, and the existing authenticated owner form. There is no automated provider-balance import. Do not fabricate or copy reconciliation rows from tests or another deployment.
 
 The full $0.035 URL-free or $0.22 URL/ambiguous ongoing reply hold must fit before token work or dispatch. Only never-attempted stages release their unused reservations; unknown attempts and crashes retain their conservative bounds. Owner-session diagnostics at `/owner/monitor-status` are local estimates, not authoritative provider balances. See [browser-reviewed replies](browser-replies.md).
+
+## Maintenance and dashboard drift
+
+`ONGOING_MAINTENANCE_ENABLED` defaults to `"false"`. It enables the fixed owner
+maintenance controls when deliberately set to `"true"`; it does not switch off
+ordinary publishing. [`maintenanceGate`](../backend/src/maintenance.mjs) rejects
+maintenance when the flag is false and independently requires activity shutdown
+when it is true. Queue migration adds its own shutdown requirements. Authentication,
+account binding, CSRF, fixed schema checks and replay protection still apply.
+After the reviewed maintenance operation, restore the captured normal settings,
+including maintenance false. No grant or publishing permission follows from a
+successful migration.
+
+Capture the actual private configuration before maintenance. After an owner
+changes dashboard variables, reconcile a private production overlay before the
+next deployment; otherwise a stale local configuration may undo the change.
+Preserve all secrets, account bindings, ledgers, schedules and unrelated owner
+changes. Keep actual auth/account identifiers out of this public repository and
+retain its intentional disabled defaults. Never assume an older Worker version
+supports a newer database schema; validate compatibility before any rollback.
+See [onboarding recovery](onboarding.md#recovery-without-guessing).

@@ -18,8 +18,20 @@ Verify the exact endpoint's current charge in the Developer Console. Set a provi
 
 The optional ongoing accounting path uses those published rates without ownership, deduplication or summoned discounts. It reserves $0.035 before an ordinary URL-free browser-reviewed reply, or $0.22 for URL/ambiguous text; see [the exact breakdown](browser-replies.md). Atomic quota-and-money reservation avoids charging a known local denial. Only a current, provably unattempted call can release its dollar reservation; historical and unknown liabilities remain untouched. The unchanged UTC caps, operation ceiling and spacing still apply. No live reply success is established by these offline tests.
 
-## Automation
+## Platform requirements versus local choices
 
-X prohibits non-API automation and automated likes. Its rules require prior written, explicit X approval to deploy or operate an AI reply bot, with other requirements applying to automated responses. A working OAuth flow or a user's permission does not establish platform approval. [X automation rules](https://help.x.com/en/rules-and-policies/x-automation)
+Automation policy rechecked 5 October 2026 against [X's official rules](https://help.x.com/en/rules-and-policies/x-automation), sections I, II.A, II.B.2–3 and II.C. X prohibits non-API automation and automated likes, requires explicit account-owner consent beyond OAuth, and requires prior written approval for AI reply bots. Automated replies/mentions need recipient opt-in, an opt-out route and one response per interaction. Its examples include a mention that clearly invites a response; not every tag qualifies. Automated DMs have separate consent requirements.
 
-The public example must keep replies off unless the final implementation and the operator's platform approval support the intended use. Follow current policy and honor opt-outs. Avoid bulk or repetitive posting.
+Own-thread-only, the sample cadence, local spending caps and owner conversation approval before a first DM reply are conservative design/policy choices. The linked rules do not establish universal own-thread-only replies. Broader scope requires owner authorization, matching reviewed implementation and platform compliance. The interpretation of a particular interaction or unattended browser-discovery workflow remains context-dependent; this tutorial is not an X approval or exemption. Keep unsupported operations off and resolve uncertainty before activation. See [cross-dot interoperability](operator-workflows.md#reply-scope-and-other-dots).
+
+The official [reply endpoint guide](https://docs.x.com/x-api/posts/manage-tweets/introduction#reply-to-a-post)
+describes self-serve replies when the original author explicitly summons the
+replying account by mentioning it or quoting its post. That supports invited
+interactions outside the responder's own roots; it does not remove other rules.
+The [developer guidelines](https://docs.x.com/developer-guidelines#gray-areas-explained)
+explicitly treat AI-generated replies without approval as a violation even when
+helpful. The [What to Build guide](https://docs.x.com/what-to-build) encourages
+mention-responsive AI integrations, but that general encouragement is not an
+app-specific approval. Verify actual approval evidence for the intended app/use
+case before enabling AI replies; neither this tutorial nor a successful API call
+establishes that it exists. These documentation changes expand no runtime scope.
