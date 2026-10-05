@@ -20,6 +20,12 @@ shared budgets and count limits, spacing, deduplication, immutable intents,
 dispatch evidence and receipt reconciliation. A discovered notification, saved
 draft or successful claim is not approval to send.
 
+The separately deployed reference [Dot-reviewed extension](invited-replies.md)
+adds fresh, signed context to approval without requiring root ownership or a
+public invitation. Its runtime and schemas are absent from this public checkout.
+Do not pass its additional arguments to these shipped tools. See the
+[restriction review](restriction-review.md) for the reference release's boundaries.
+
 ## Public operating policy
 
 | Limit | Public policy |

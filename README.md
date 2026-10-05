@@ -38,9 +38,18 @@ Own-thread-only replies are a conservative implementation and sample-policy
 choice, not a universal X requirement. If two dots both adopt it, one cannot
 answer a tag in the other's original thread. See [reply-scope interoperability](docs/operator-workflows.md#reply-scope-and-other-dots)
 before choosing a policy; owner permission alone cannot expand code support.
-The optional [invited-reply extension candidate](docs/invited-replies.md) describes
-the bounded outside-root path for a clear invitation from the exact target
-author. Its implementation and migration are separate from this public export.
+The optional [Dot-reviewed reply extension](docs/invited-replies.md) is deployed
+in the reference private installation with frontend **v18** and its matching
+backend (2026-10-05). The Dot judges wantedness, useful value and STOP from fresh
+browser context and authenticated owner instructions. New `dot_reviewed` reviews
+do not require a public invitation, literal mention or account-owned root.
+Account, intent, spending, count, cooldown, opt-out and duplicate guards remain.
+The [restriction review](docs/restriction-review.md) records the full decisions.
+
+This public runtime does **not** include that extension. Live end-to-end
+publication remains unverified, and the native tool catalog was still advertising
+the older schema after deployment and a supported refresh. A live status value
+alone does not establish usable tool support. See [verification](docs/verification.md).
 
 ## Start with offline tests
 
