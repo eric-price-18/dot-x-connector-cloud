@@ -1,11 +1,17 @@
-# Durable reply queue — candidate, default off
+# Durable reply queue — reusable, default off
 
-This default-off candidate includes the durable backend queue, eight authenticated
-operations and the owner frontend bridge. Release review remains pending. The
+This default-off implementation includes the durable backend queue, eight authenticated
+operations and the owner frontend bridge. Each new deployment needs its own review. The
 processor adapter reconciles desired state with verified scheduler observations;
 it does not register a task. Use a scheduler that supports the required cadence
 and obtain explicit owner authorization before scheduling or enabling activity.
 These files do not deploy a service, apply a live migration or activate a schedule.
+
+For account checks, All/Mentions discovery, reply judgment and conditional DM
+notices, follow [operator workflows](operator-workflows.md). The public runtime
+below uses UTC; separately reviewed deployments can have different accounting
+calendars. Do not copy private task IDs or assume a reference deployment's
+permissions, calendar or scheduler adapter exist in a new installation.
 
 The model decides **WHAT**: whether a fresh conversation warrants a response,
 what to say, whether the reply adds value, and whether there is a STOP request.
@@ -162,8 +168,13 @@ For larger queues, follow `next_after` and retain the minimum non-null
 The final continuation page still has `readiness_complete:false`; it is not a
 complete first-page observation. The trusted owner adapter must validate and
 aggregate the entire scan before deriving a complete processor desired state.
-That adapter remains an integration requirement; passing a final partial
-handoff directly to the planner does not establish completeness.
+The shipped [`aggregateQueueReadiness(pages)` helper](../frontend/lib/queue-readiness.mjs)
+performs this validation on the exact sequence of `{arguments, value}` tool results.
+It checks cursor continuity and generation, retains the earliest candidate and
+returns a complete handoff only after a complete scan. It makes no tool or
+scheduler calls. Wiring that helper into a real owner adapter remains an
+integration requirement; passing a final partial handoff directly to the planner
+does not establish completeness.
 
 Discard the aggregate and restart on `restart_required:true`, a generation
 change or a failed continuation. Claim can return `reason:'restart_scan'`
@@ -189,7 +200,9 @@ and retain durable work until an authorized invocation or expiry. Do not claim
 callback credential. Where explicitly supported, the requested exact recurrence
 is `RRULE:FREQ=MINUTELY;INTERVAL=15`, starting at the eligible backend UTC instant.
 Preserve that instant if the platform also requires the user's personal timezone.
-No scheduler adapter or active schedule is established by this candidate.
+No platform scheduler integration or active schedule is established by installing
+this source. The readiness helper and pure planner are supplied; a verified
+owner-platform adapter is still required.
 
 The processor key is `reply-queue-processor:<account_id>`; this is an owner-only
 runtime key, never public account data. Its desired state binds the key,

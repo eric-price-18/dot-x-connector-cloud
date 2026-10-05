@@ -6,7 +6,7 @@ server-to-server tools support original posts, reposts and a tightly constrained
 own-thread reply workflow. This source is an inert starting point, not a
 configured deployment. No live X request is authorized by these examples.
 
-The default-off [durable reply queue candidate](../docs/reply-queue.md) adds an
+The default-off [durable reply queue](../docs/reply-queue.md) adds an
 authenticated queue surface, 24-hour expiry, fair selection, retained dispatch
 evidence and an explicit scheduler handoff. Its portable contract is generated
 from the tool metadata. The eight operations include fresh approval, stored-revision publication and

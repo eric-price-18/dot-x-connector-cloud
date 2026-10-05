@@ -2,6 +2,26 @@
 
 Local source-export verification, 2 October 2026, Linux with Node 24.19.0. These are offline tests of this reusable source, not a claim that any reader's deployment or provider account has been verified.
 
+The documentation review of 5 October 2026 adds [new-owner onboarding](onboarding.md),
+[operator workflows and source boundaries](operator-workflows.md), and reference-v16
+extension availability. It does not change runtime source or turn historical
+test results below into acceptance of a new deployment. Browser judgment,
+scheduler acknowledgment, conditional DM alerts and owner-manual PIN entry need
+their own operational verification; no SDK/DM transport or PIN-unlock bridge is
+claimed by the source tests.
+
+The [invited-reply extension guide](invited-replies.md) documents an additional,
+default-off candidate with typed provenance and final dispatch checks. Its
+private implementation test results are not results for this public runtime.
+The public source remains own-thread-only; no deployment or activation is part
+of the tutorial revision.
+
+For this documentation-only revision, all 93 local links in 14 changed Markdown
+files resolved, the private-identifier scan found zero matching files, the
+backend syntax/configuration/integrity check passed (91 modules), and both
+processor/readiness helper tests passed. No runtime implementation, deployment,
+owner setting or scheduler was changed by this tutorial revision.
+
 ## Passed
 
 - Clean dependency installation with both pinned package lockfiles

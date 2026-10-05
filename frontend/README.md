@@ -31,3 +31,10 @@ This offline smoke check verifies the actual built setup route, owner denials, s
 See [starter integration](../docs/starter-integration.md) and [configuration](../docs/configuration.md) before adapting the examples. The generated full Site is outside this repository and keeps its own source identity, dependencies and platform licenses.
 
 The default-off queue bridge adds eight signed operations and a durable processor-state adapter. Its owner workflow and migration setup are documented in [reply queue setup](../docs/reply-queue.md). The overlay includes `skills/x-reply-queue/SKILL.md`; skill presence grants no permission to enable activity or schedule tasks.
+
+For a new owner, complete [onboarding](../docs/onboarding.md) and adopt the
+[operator workflows](../docs/operator-workflows.md) explicitly. The supplied
+`aggregateQueueReadiness` and `reconcileReplyQueueProcessor` helpers need an
+owner-platform adapter; no scheduler registration is included. Visual DM
+discovery and its conditional PIN alerts are separate operator procedures,
+not capabilities of this frontend's MCP tools.
